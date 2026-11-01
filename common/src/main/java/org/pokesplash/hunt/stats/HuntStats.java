@@ -22,7 +22,7 @@ import java.util.UUID;
 
 /**
  * Tracks completed hunts per player in config/hunt/stats.json.
- * Changes are saved at most once per hunt check, and on server stop.
+ * Changes are saved at most every 30 seconds, and on server stop.
  */
 public class HuntStats {
 	private static final String FILE = "stats.json";

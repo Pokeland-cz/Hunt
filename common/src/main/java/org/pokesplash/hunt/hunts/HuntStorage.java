@@ -4,7 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.minecraft.core.RegistryAccess;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.util.FileStore;
 import org.pokesplash.hunt.util.Utils;
@@ -14,8 +13,8 @@ import java.util.UUID;
 
 /**
  * Saves the current hunts to config/hunt/hunts.json so they survive a restart.
- * Changes only mark the data as dirty; it's written at most once per hunt check (every second)
- * on a background thread, and synchronously when the server stops.
+ * Changes only mark the data as dirty; it's written at most every 30 seconds on a background
+ * thread, and synchronously when the server stops.
  */
 public class HuntStorage {
 	private static final String FILE = "hunts.json";
@@ -40,13 +39,12 @@ public class HuntStorage {
 	}
 
 	private String serialize() {
-		RegistryAccess registryAccess = Hunt.server.registryAccess();
 		JsonObject root = new JsonObject();
 		root.addProperty("version", VERSION);
 
 		JsonArray global = new JsonArray();
 		for (SingleHunt hunt : Hunt.hunts.getHuntValues()) {
-			global.add(hunt.toJson(registryAccess));
+			global.add(hunt.toJson());
 		}
 		root.add("global", global);
 
@@ -54,7 +52,7 @@ public class HuntStorage {
 		for (UUID player : Hunt.manager.getPlayers()) {
 			JsonArray playerHunts = new JsonArray();
 			for (SingleHunt hunt : Hunt.manager.getPlayerHunts(player).getHuntValues()) {
-				playerHunts.add(hunt.toJson(registryAccess));
+				playerHunts.add(hunt.toJson());
 			}
 			players.add(player.toString(), playerHunts);
 		}
@@ -82,13 +80,12 @@ public class HuntStorage {
 			return;
 		}
 
-		RegistryAccess registryAccess = Hunt.server.registryAccess();
 		int loaded = 0;
 		int skipped = 0;
 
 		if (root.has("global")) {
 			for (JsonElement element : root.getAsJsonArray("global")) {
-				SingleHunt hunt = parse(element, registryAccess);
+				SingleHunt hunt = parse(element);
 				if (hunt != null && Hunt.hunts.restoreHunt(hunt)) {
 					loaded++;
 				} else {
@@ -108,7 +105,7 @@ public class HuntStorage {
 
 				CurrentHunts playerHunts = new CurrentHunts(player);
 				for (JsonElement element : entry.getValue().getAsJsonArray()) {
-					SingleHunt hunt = parse(element, registryAccess);
+					SingleHunt hunt = parse(element);
 					if (hunt != null && playerHunts.restoreHunt(hunt)) {
 						loaded++;
 					} else {
@@ -126,9 +123,9 @@ public class HuntStorage {
 		Hunt.LOGGER.info("Loaded " + loaded + " saved hunts" + (skipped > 0 ? " (" + skipped + " skipped)." : "."));
 	}
 
-	private static SingleHunt parse(JsonElement element, RegistryAccess registryAccess) {
+	private static SingleHunt parse(JsonElement element) {
 		try {
-			return SingleHunt.fromJson(element.getAsJsonObject(), registryAccess);
+			return SingleHunt.fromJson(element.getAsJsonObject());
 		} catch (Exception e) {
 			Hunt.LOGGER.warn("Skipping a saved hunt that could not be loaded: " + e.getMessage());
 			return null;

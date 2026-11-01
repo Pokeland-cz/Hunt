@@ -37,6 +37,9 @@ public class Hunt
 	public static MinecraftServer server;
 	// True once load() has run, so a failed startup never overwrites the saved hunts with empty data.
 	private static boolean loaded = false;
+	// Hunts and stats are saved at most this often, and always on server stop.
+	private static final long SAVE_INTERVAL_MS = 30_000;
+	private static long lastSave = 0;
 
 	public static void init() {
 		// Adds command to registry
@@ -112,8 +115,12 @@ public class Hunt
 		} else {
 			hunts.getHuntValues().forEach(SingleHunt::check);
 		}
-		storage.saveIfDirty();
-		stats.saveIfDirty();
+		long now = System.currentTimeMillis();
+		if (now - lastSave >= SAVE_INTERVAL_MS) {
+			lastSave = now;
+			storage.saveIfDirty();
+			stats.saveIfDirty();
+		}
 	}
 
 	/**

@@ -1,9 +1,17 @@
 package org.pokesplash.hunt.hunts;
 
+import com.cobblemon.mod.common.api.Priority;
+import com.cobblemon.mod.common.api.abilities.Abilities;
+import com.cobblemon.mod.common.api.abilities.AbilityTemplate;
+import com.cobblemon.mod.common.api.pokemon.Natures;
+import com.cobblemon.mod.common.api.pokemon.PokemonSpecies;
+import com.cobblemon.mod.common.pokemon.Gender;
+import com.cobblemon.mod.common.pokemon.Nature;
 import com.cobblemon.mod.common.pokemon.Pokemon;
+import com.cobblemon.mod.common.pokemon.Species;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import net.minecraft.core.RegistryAccess;
+import net.minecraft.resources.ResourceLocation;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.config.CustomPrice;
 import org.pokesplash.hunt.config.RewardConfig;
@@ -11,6 +19,7 @@ import org.pokesplash.hunt.config.RewardConfig;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 public class SingleHunt {
@@ -99,7 +108,7 @@ public class SingleHunt {
 	/**
 	 * Saves the hunt to JSON.
 	 */
-	public JsonObject toJson(RegistryAccess registryAccess) {
+	public JsonObject toJson() {
 		JsonObject json = new JsonObject();
 		json.addProperty("id", id.toString());
 		if (owner != null) {
@@ -113,15 +122,67 @@ public class SingleHunt {
 		}
 		json.add("commands", commandArray);
 		json.addProperty("endtime", endtime);
-		json.add("pokemon", pokemon.saveToJSON(registryAccess, new JsonObject()));
+		json.add("pokemon", savePokemon(pokemon));
 		return json;
+	}
+
+	/**
+	 * Saves only what a hunt needs (what's matched and displayed), not the whole Pokemon:
+	 * about 100 bytes instead of 1-2 KB per hunt.
+	 */
+	private static JsonObject savePokemon(Pokemon pokemon) {
+		JsonObject json = new JsonObject();
+		json.addProperty("species", pokemon.getSpecies().getResourceIdentifier().toString());
+		JsonArray aspects = new JsonArray();
+		pokemon.getForcedAspects().forEach(aspects::add); // Forced aspects select the form.
+		json.add("aspects", aspects);
+		json.addProperty("ability", pokemon.getAbility().getName());
+		json.addProperty("gender", pokemon.getGender().name());
+		json.addProperty("nature", pokemon.getNature().getName().toString());
+		json.addProperty("shiny", pokemon.getShiny());
+		return json;
+	}
+
+	/**
+	 * Rebuilds a Pokemon saved with {@link #savePokemon}.
+	 */
+	private static Pokemon loadPokemon(JsonObject json) {
+		Species species = PokemonSpecies.getByIdentifier(ResourceLocation.parse(json.get("species").getAsString()));
+		if (species == null) {
+			throw new IllegalArgumentException("Unknown species " + json.get("species").getAsString());
+		}
+
+		Pokemon pokemon = new Pokemon();
+		pokemon.setSpecies(species);
+
+		Set<String> aspects = new HashSet<>();
+		json.getAsJsonArray("aspects").forEach(aspect -> aspects.add(aspect.getAsString()));
+		if (!aspects.isEmpty()) {
+			pokemon.setForcedAspects(aspects);
+		}
+
+		pokemon.setGender(Gender.valueOf(json.get("gender").getAsString()));
+		pokemon.setShiny(json.get("shiny").getAsBoolean());
+
+		Nature nature = Natures.getNature(ResourceLocation.parse(json.get("nature").getAsString()));
+		if (nature != null) {
+			pokemon.setNature(nature);
+		}
+
+		AbilityTemplate ability = Abilities.get(json.get("ability").getAsString());
+		if (ability != null) {
+			pokemon.updateAbility(ability.create(false, Priority.LOWEST));
+		} else {
+			pokemon.rollAbility();
+		}
+		return pokemon;
 	}
 
 	/**
 	 * Loads a hunt saved with {@link #toJson}.
 	 * @throws RuntimeException if the data is invalid, e.g. the species no longer exists.
 	 */
-	public static SingleHunt fromJson(JsonObject json, RegistryAccess registryAccess) {
+	public static SingleHunt fromJson(JsonObject json) {
 		UUID id = UUID.fromString(json.get("id").getAsString());
 		UUID owner = json.has("owner") ? UUID.fromString(json.get("owner").getAsString()) : null;
 		Bucket bucket = Bucket.valueOf(json.get("bucket").getAsString());
@@ -129,7 +190,7 @@ public class SingleHunt {
 		ArrayList<String> commands = new ArrayList<>();
 		json.getAsJsonArray("commands").forEach(element -> commands.add(element.getAsString()));
 		long endtime = json.get("endtime").getAsLong();
-		Pokemon pokemon = Pokemon.Companion.loadFromJSON(registryAccess, json.getAsJsonObject("pokemon"));
+		Pokemon pokemon = loadPokemon(json.getAsJsonObject("pokemon"));
 		return new SingleHunt(id, owner, pokemon, bucket, price, commands, endtime);
 	}
 
