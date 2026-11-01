@@ -8,8 +8,11 @@ import org.pokesplash.hunt.broadcast.BroadcastType;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class CurrentHunts {
 	private final UUID owner; // The owner of the current hunts.
@@ -33,13 +36,10 @@ public class CurrentHunts {
 			return;
 		}
 
-		for (int x=0; x < Hunt.config.getHuntAmount(); x++) {
-			try {
-				TimeUnit.MILLISECONDS.sleep(50);
-			} catch (Exception e) {
-				e.printStackTrace();
+		while (hunts.size() < Hunt.config.getHuntAmount()) {
+			if (addHunt() == null) {
+				break; // No more species available.
 			}
-			addHunt();
 		}
 	}
 
@@ -54,44 +54,62 @@ public class CurrentHunts {
 
 	/**
 	 * Adds a new hunt to the current hunts.
-	 * @return true if successful.
+	 * @return the new hunt, or null if the hunt limit is reached or no species are available.
 	 */
 	public SingleHunt addHunt() {
 		// If the maximum hunt amount is reached, don't add another.
-		if (hunts.size() < Hunt.config.getHuntAmount()) {
-			SingleHunt hunt = new SingleHunt(owner);
-
-			// If a species matches, add hunt again.
-			if (species.containsValue(hunt.getPokemon().getSpecies()) ||
-			Hunt.config.blacklistContains(hunt.getPokemon().getSpecies().getName())) {
-				return addHunt();
-			}
-
-			// If the config setting is enabled, send the broadcast.
-
-			if (Hunt.config.isIndividualHunts()) {
-				ServerPlayer player = owner == null ? null : Hunt.server.getPlayerList().getPlayer(owner);
-				if (owner != null &&
-						player != null &&
-				Hunt.permissions.hasPermission(player,
-						Hunt.permissions.getPermission("HuntNotify"))) {
-					Hunt.broadcaster.sendPlayerMessage(owner, BroadcastType.STARTED, null, hunt.getPokemon(),
-							hunt.getPrice());
-				}
-
-			} else {
-				if (Hunt.config.isSendHuntBeginMessage()) {
-					Hunt.broadcaster.sendBroadcast(BroadcastType.STARTED, null, hunt.getPokemon(),
-							hunt.getPrice());
-				}
-			}
-
-			species.put(hunt.getId(), hunt.getPokemon().getSpecies());
-
-			// Add the hunt to the list.
-			return hunts.put(hunt.getId(), hunt);
+		if (hunts.size() >= Hunt.config.getHuntAmount()) {
+			return null;
 		}
-		return null;
+
+		// Species already being hunted can't be picked again.
+		Set<Species> taken = new HashSet<>(species.values());
+
+		Bucket bucket = Hunt.config.getRarity().getRandomRarity(b -> hasAvailableSpecies(b, taken));
+		if (bucket == null) {
+			Hunt.LOGGER.warn("Could not create a new hunt: no eligible species are left. "
+					+ "Check the blacklist and rarity settings.");
+			return null;
+		}
+
+		List<Species> candidates = Hunt.spawnRates.getEligibleSpecies(bucket).stream()
+				.filter(s -> !taken.contains(s))
+				.toList();
+		Species chosen = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+
+		SingleHunt hunt = new SingleHunt(owner, chosen, bucket);
+
+		// If the config setting is enabled, send the broadcast.
+		if (Hunt.config.isIndividualHunts()) {
+			ServerPlayer player = getOnlineOwner();
+			if (player != null &&
+					Hunt.permissions.hasPermission(player, Hunt.permissions.getPermission("HuntNotify"))) {
+				Hunt.broadcaster.sendPlayerMessage(owner, BroadcastType.STARTED, null, hunt.getPokemon(),
+						hunt.getPrice());
+			}
+		} else if (Hunt.config.isSendHuntBeginMessage()) {
+			Hunt.broadcaster.sendBroadcast(BroadcastType.STARTED, null, hunt.getPokemon(), hunt.getPrice());
+		}
+
+		species.put(hunt.getId(), chosen);
+		hunts.put(hunt.getId(), hunt);
+		return hunt;
+	}
+
+	private static boolean hasAvailableSpecies(Bucket bucket, Set<Species> taken) {
+		for (Species s : Hunt.spawnRates.getEligibleSpecies(bucket)) {
+			if (!taken.contains(s)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private ServerPlayer getOnlineOwner() {
+		if (owner == null || Hunt.server == null) {
+			return null;
+		}
+		return Hunt.server.getPlayerList().getPlayer(owner);
 	}
 
 	/**
@@ -106,10 +124,9 @@ public class CurrentHunts {
 
 			// If broadcasts are enabled and the method call wants it broadcast, send it.
 			if (Hunt.config.isIndividualHunts()) {
-				if (owner != null &&
-						Hunt.server.getPlayerList().getPlayer(owner) != null &&
-						Hunt.permissions.hasPermission(Hunt.server.getPlayerList().getPlayer(owner),
-								Hunt.permissions.getPermission("HuntNotify"))) {
+				ServerPlayer player = getOnlineOwner();
+				if (player != null &&
+						Hunt.permissions.hasPermission(player, Hunt.permissions.getPermission("HuntNotify"))) {
 					Hunt.broadcaster.sendPlayerMessage(owner, BroadcastType.ENDED, null, removedHunt.getPokemon(),
 							removedHunt.getPrice());
 				}
@@ -144,9 +161,9 @@ public class CurrentHunts {
 	 * @return UUID of the hunt that matches the hunt.
 	 */
 	public UUID matches(Pokemon pokemon) {
-		for (UUID id : hunts.keySet()) {
-			if (hunts.get(id).matches(pokemon)) {
-				return id;
+		for (SingleHunt hunt : hunts.values()) {
+			if (hunt.matches(pokemon)) {
+				return hunt.getId();
 			}
 		}
 		return null;

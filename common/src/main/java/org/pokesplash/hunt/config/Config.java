@@ -1,6 +1,7 @@
 package org.pokesplash.hunt.config;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonParser;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.enumeration.Economy;
 import org.pokesplash.hunt.old.ConfigOld;
@@ -28,6 +29,8 @@ public class Config extends Versioned {
 	private Properties matchProperties; // What properties should be checked to complete the hunt.
 	private ArrayList<CustomPrice> customPrices; // List of custom prices.
 	private ArrayList<String> blacklist; // List if Pokemon that shouldn't be added to Hunt.
+	private boolean usePackIcons; // Show species icons from a resource pack instead of Pokemon models in /hunt.
+	private String packIconItem; // The item the resource pack overrides with custom_model_data = dex number.
 
 	public Config() {
 		super(Hunt.CONFIG_VERSION);
@@ -47,6 +50,8 @@ public class Config extends Versioned {
 		customPrices = new ArrayList<>();
 		customPrices.add(new CustomPrice());
 		blacklist = new ArrayList<>();
+		usePackIcons = true;
+		packIconItem = "minecraft:gray_dye";
 	}
 
 	/**
@@ -79,6 +84,15 @@ public class Config extends Versioned {
 					rarity = cfg.getRarity();
 					rewards = cfg.getRewards();
 					economy = cfg.getEconomy();
+					usePackIcons = cfg.isUsePackIcons();
+					if (cfg.getPackIconItem() != null && !cfg.getPackIconItem().isBlank()) {
+						packIconItem = cfg.getPackIconItem();
+					}
+
+					// Older configs don't have the icon options yet, write them so they are visible.
+					if (!JsonParser.parseString(el).getAsJsonObject().has("usePackIcons")) {
+						write();
+					}
 
 					if (!versioned.getVersion().equals(Hunt.CONFIG_VERSION)) {
 						ConfigOld cfgOld = gson.fromJson(el, ConfigOld.class);
@@ -112,6 +126,14 @@ public class Config extends Versioned {
 		return futureWrite.join();
 	}
 
+
+	public boolean isUsePackIcons() {
+		return usePackIcons;
+	}
+
+	public String getPackIconItem() {
+		return packIconItem;
+	}
 
 	public int getBufferDuration() {
 		return bufferDuration;

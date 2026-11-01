@@ -1,13 +1,13 @@
 package org.pokesplash.hunt.hunts;
 
 import com.cobblemon.mod.common.pokemon.Pokemon;
+import com.cobblemon.mod.common.pokemon.Species;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.config.CustomPrice;
 import org.pokesplash.hunt.config.RewardConfig;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,23 +21,19 @@ public class SingleHunt {
 	private final long endtime; // The end date for the hunt.
 	private Bucket bucket; // The spawn bucket of the Pokemon.
 
-	public SingleHunt(UUID owner) {
-		// Creates unique ID and generates random pokemon.
+	/**
+	 * Creates a new hunt for the given species.
+	 * @param owner the player who owns the hunt, or null for global hunts.
+	 * @param species the species to hunt.
+	 * @param bucket the rarity bucket of the species.
+	 */
+	public SingleHunt(UUID owner, Species species, Bucket bucket) {
 		id = UUID.randomUUID();
 		this.owner = owner;
+		this.bucket = bucket;
 
 		pokemon = new Pokemon();
-
-		Bucket rarityRequired = Hunt.config.getRarity().getRandomRarity();
-		bucket = Hunt.spawnRates.getBucket(pokemon);
-		boolean isLegendary = pokemon.isLegendary();
-
-		// Will keep regenerating a Pokemon until one found in the rarity table that isn't a legendary is found.
-		while (bucket == null || isLegendary || !bucket.equals(rarityRequired)) {
-			pokemon = new Pokemon();
-			bucket = Hunt.spawnRates.getBucket(pokemon);
-			isLegendary = pokemon.isLegendary();
-		}
+		pokemon.setSpecies(species);
 
 		RewardConfig reward = Hunt.config.getRewards().get(bucket);
 		price = reward.getPrice();
@@ -61,11 +57,8 @@ public class SingleHunt {
 		pokemon.rollAbility();
 		pokemon.checkGender();
 
-		// Creates the timer to replace the hunt once it is over.
-		int duration = Hunt.config.getHuntDuration() * 60 * 1000;
-
-		// Adds the endtime as the current time + the duration.
-		endtime = new Date().getTime() + duration;
+		// The hunt ends after the configured duration (in minutes).
+		endtime = System.currentTimeMillis() + Hunt.config.getHuntDuration() * 60_000L;
 	}
 
 	/**
@@ -73,14 +66,13 @@ public class SingleHunt {
 	 */
 	public void check() {
 
-		if (endtime > new Date().getTime()) {
+		if (endtime > System.currentTimeMillis()) {
 			return;
 		}
 
-		if (Hunt.config.isIndividualHunts()) {
-			Hunt.manager.getPlayerHunts(owner).replaceHunt(id, true);
-		} else {
-			Hunt.hunts.replaceHunt(id, true);
+		CurrentHunts hunts = Hunt.config.isIndividualHunts() ? Hunt.manager.getPlayerHunts(owner) : Hunt.hunts;
+		if (hunts != null) {
+			hunts.replaceHunt(id, true);
 		}
 	}
 

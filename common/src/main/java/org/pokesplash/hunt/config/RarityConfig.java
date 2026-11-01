@@ -2,10 +2,8 @@ package org.pokesplash.hunt.config;
 
 import org.pokesplash.hunt.hunts.Bucket;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Predicate;
 
 public class RarityConfig {
 	private int common; // What rarity is classed as common.
@@ -36,14 +34,50 @@ public class RarityConfig {
 		return ultraRare;
 	}
 
-	public Bucket getRandomRarity() {
-		List<Bucket> list = new ArrayList<Bucket>();
-		list.addAll(Collections.nCopies(getCommon(), Bucket.COMMON));
-		list.addAll(Collections.nCopies(getUncommon(), Bucket.UNCOMMON));
-		list.addAll(Collections.nCopies(getRare(), Bucket.RARE));
-		list.addAll(Collections.nCopies(getUltraRare(), Bucket.ULTRA_RARE));
+	public int getWeight(Bucket bucket) {
+		return switch (bucket) {
+			case COMMON -> common;
+			case UNCOMMON -> uncommon;
+			case RARE -> rare;
+			case ULTRA_RARE -> ultraRare;
+		};
+	}
 
-		Random rand = new Random();
-		return list.get(rand.nextInt(list.size()));
+	/**
+	 * Picks a random bucket using the configured weights.
+	 * @return the bucket, or null if every weight is zero.
+	 */
+	public Bucket getRandomRarity() {
+		return getRandomRarity(bucket -> true);
+	}
+
+	/**
+	 * Picks a random bucket using the configured weights, only considering buckets that pass the filter.
+	 * @param allowed filter for the buckets that can be picked.
+	 * @return the bucket, or null if no allowed bucket has a positive weight.
+	 */
+	public Bucket getRandomRarity(Predicate<Bucket> allowed) {
+		int total = 0;
+		for (Bucket bucket : Bucket.values()) {
+			if (allowed.test(bucket)) {
+				total += Math.max(0, getWeight(bucket));
+			}
+		}
+
+		if (total <= 0) {
+			return null;
+		}
+
+		int roll = ThreadLocalRandom.current().nextInt(total);
+		for (Bucket bucket : Bucket.values()) {
+			if (!allowed.test(bucket)) {
+				continue;
+			}
+			roll -= Math.max(0, getWeight(bucket));
+			if (roll < 0) {
+				return bucket;
+			}
+		}
+		return null;
 	}
 }

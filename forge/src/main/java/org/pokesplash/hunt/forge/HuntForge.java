@@ -40,6 +40,9 @@ public class HuntForge {
 
     @SubscribeEvent
     public void serverTickEvent(ServerTickEvent.Post event) {
-        Hunt.check();
+        // Once per second, same as Fabric.
+        if (event.getServer().getTickCount() % 20 == 0) {
+            Hunt.check();
+        }
     }
 }

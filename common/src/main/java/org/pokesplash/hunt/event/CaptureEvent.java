@@ -11,6 +11,7 @@ import org.pokesplash.hunt.api.economy.HuntEconomyProvider;
 import org.pokesplash.hunt.api.event.HuntEvents;
 import org.pokesplash.hunt.api.event.events.CompletedEvent;
 import org.pokesplash.hunt.broadcast.BroadcastType;
+import org.pokesplash.hunt.hunts.CurrentHunts;
 import org.pokesplash.hunt.hunts.ReplacedHunt;
 import org.pokesplash.hunt.hunts.SingleHunt;
 import org.pokesplash.hunt.util.Utils;
@@ -25,33 +26,16 @@ public abstract class CaptureEvent {
 			ServerPlayer player = e.getPlayer();
 			Pokemon pokemon = e.getPokemon();
 
-			UUID matchedUUID;
-
-			if (Hunt.config.isIndividualHunts()) {
-				matchedUUID = Hunt.manager.getPlayerHunts(player.getUUID()).matches(pokemon);
-			} else {
-				matchedUUID = Hunt.hunts.matches(pokemon);
-			}
+			CurrentHunts currentHunts = Hunt.getHuntsFor(player.getUUID());
+			UUID matchedUUID = currentHunts == null ? null : currentHunts.matches(pokemon);
 
 			// If the pokemon doesn't match a hunt pokemon, matchedUUID will be null, otherwise it'll be a UUID.
 			if (matchedUUID != null) {
-				SingleHunt hunt;
-
-				if (Hunt.config.isIndividualHunts()) {
-					hunt = Hunt.manager.getPlayerHunts(player.getUUID()).getHunt(matchedUUID);
-				} else {
-					hunt = Hunt.hunts.getHunt(matchedUUID);
-				}
+				SingleHunt hunt = currentHunts.getHunt(matchedUUID);
 
 				double price = hunt.getPrice();
 
-				ReplacedHunt replacedHunt;
-				if (Hunt.config.isIndividualHunts()) {
-					replacedHunt = Hunt.manager.getPlayerHunts(player.getUUID())
-							.replaceHunt(matchedUUID, false);
-				} else {
-					replacedHunt = Hunt.hunts.replaceHunt(matchedUUID, false);
-				}
+				ReplacedHunt replacedHunt = currentHunts.replaceHunt(matchedUUID, false);
 
 				if (!Hunt.config.isIndividualHunts()) {
 					Hunt.broadcaster.sendBroadcast(BroadcastType.CAPTURED, player, pokemon, price);
@@ -76,7 +60,7 @@ public abstract class CaptureEvent {
 									Hunt.language.getPayMessage(), player, pokemon, price
 							)));
 						}
-					} catch (Exception ex) {
+					} catch (Exception | LinkageError ex) {
 						// If any errors occur, send log to console.
 						Hunt.LOGGER.error("Could not process hunt " + matchedUUID + " for " + player.getName().getString());
 						// Just in case playerlist is empty for some random reason.
@@ -89,7 +73,6 @@ public abstract class CaptureEvent {
 					Utils.runCommands(hunt.getCommands(), player, pokemon, price);
 				}
 
-				return Unit.INSTANCE;
 			}
 			return Unit.INSTANCE;
 		});

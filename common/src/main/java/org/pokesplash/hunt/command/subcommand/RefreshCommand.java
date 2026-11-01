@@ -86,9 +86,8 @@ public class RefreshCommand extends Subcommand {
 				return 1;
 			}
 
-			CurrentHunts playerHunts = Hunt.manager.getPlayerHunts(player.getUUID());
-
-			Hunt.manager.addPlayer(player.getUUID()); // Adds the player if they dont exist.
+			// Gets the player's hunts, adding the player if they don't exist yet.
+			CurrentHunts playerHunts = Hunt.manager.getOrCreatePlayerHunts(player.getUUID());
 
 			Set<UUID> huntIds = new HashSet<>(playerHunts.getHunts().keySet()); // Gets the players current hunt ids.
 

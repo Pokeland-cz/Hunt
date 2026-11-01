@@ -1,6 +1,5 @@
 package org.pokesplash.hunt;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,8 +16,7 @@ import org.pokesplash.hunt.hunts.SpawnRates;
 import org.pokesplash.hunt.util.CommandsRegistry;
 import org.pokesplash.hunt.util.Permissions;
 
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.UUID;
 
 public class Hunt
 {
@@ -35,8 +33,6 @@ public class Hunt
 	public static Lang language = new Lang();
 	public static final Logs logs = new Logs();
 	public static MinecraftServer server;
-	public static final ScheduledExecutorService ASYNC_EXEC = Executors.newScheduledThreadPool(2,
-			new ThreadFactoryBuilder().setNameFormat("Hunt-Thread-#%d").setDaemon(true).build());
 
 	public static void init() {
 		// Adds command to registry
@@ -54,21 +50,31 @@ public class Hunt
 		spawnRates.init();
 		logs.init();
 
-		ASYNC_EXEC.submit(() -> {
-			if (!config.isIndividualHunts()) {
-				hunts.init();
-			}
-			manager.init();
-		});
+		// Hunts are only touched on the server thread, so no locking is needed.
+		if (!config.isIndividualHunts()) {
+			hunts.init();
+		}
+		manager.init();
 	}
 
+	/**
+	 * Replaces expired hunts. Must be called from the server thread.
+	 */
 	public static void check() {
-		ASYNC_EXEC.submit(() -> {
-			if (config.isIndividualHunts()) {
-				manager.getHunts().forEach(SingleHunt::check);
-			} else {
-				hunts.getHuntValues().forEach(SingleHunt::check);
-			}
-		});
+		if (config.isIndividualHunts()) {
+			manager.checkOnlinePlayers();
+		} else {
+			hunts.getHuntValues().forEach(SingleHunt::check);
+		}
+	}
+
+	/**
+	 * Gets the hunts that apply to a player: their own hunts if individual hunts are enabled,
+	 * otherwise the global hunts.
+	 * @param player the player's UUID.
+	 * @return the hunts for the player.
+	 */
+	public static CurrentHunts getHuntsFor(UUID player) {
+		return config.isIndividualHunts() ? manager.getOrCreatePlayerHunts(player) : hunts;
 	}
 }

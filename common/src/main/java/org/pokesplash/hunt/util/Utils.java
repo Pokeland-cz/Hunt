@@ -4,7 +4,6 @@ import com.cobblemon.mod.common.pokemon.Pokemon;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -27,8 +26,6 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Scanner;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -55,38 +52,47 @@ public abstract class Utils {
 			file.getParentFile().mkdirs();
 		}
 
-		// Write the data to file.
-		try (AsynchronousFileChannel fileChannel = AsynchronousFileChannel.open(
-				path,
-				StandardOpenOption.WRITE,
-				StandardOpenOption.CREATE,
-				StandardOpenOption.TRUNCATE_EXISTING
-		)) {
-			ByteBuffer buffer = ByteBuffer.wrap(data.getBytes(StandardCharsets.UTF_8));
-
-			fileChannel.write(buffer, 0, buffer, new CompletionHandler<Integer, ByteBuffer>() {
-				@Override
-				public void completed(Integer result, ByteBuffer attachment) {
-					attachment.clear();
-					try {
-						fileChannel.close();
-					} catch (IOException e) {
-						throw new RuntimeException(e);
-					}
-					future.complete(true);
-				}
-
-				@Override
-				public void failed(Throwable exc, ByteBuffer attachment) {
-					future.complete(writeFileSync(file, data));
-				}
-			});
+		// Write the data to file. The channel is closed by the completion handler, not here,
+		// because closing it before the write finishes would cancel the write.
+		AsynchronousFileChannel fileChannel;
+		try {
+			fileChannel = AsynchronousFileChannel.open(
+					path,
+					StandardOpenOption.WRITE,
+					StandardOpenOption.CREATE,
+					StandardOpenOption.TRUNCATE_EXISTING
+			);
 		} catch (IOException | SecurityException e) {
-			Hunt.LOGGER.fatal("Unable to write file asynchronously, attempting sync write.");
-			future.complete(future.complete(false));
+			Hunt.LOGGER.error("Unable to write file asynchronously, attempting sync write.");
+			future.complete(writeFileSync(file, data));
+			return future;
 		}
 
+		ByteBuffer buffer = ByteBuffer.wrap(data.getBytes(StandardCharsets.UTF_8));
+
+		fileChannel.write(buffer, 0, buffer, new CompletionHandler<Integer, ByteBuffer>() {
+			@Override
+			public void completed(Integer result, ByteBuffer attachment) {
+				closeQuietly(fileChannel);
+				future.complete(true);
+			}
+
+			@Override
+			public void failed(Throwable exc, ByteBuffer attachment) {
+				closeQuietly(fileChannel);
+				future.complete(writeFileSync(file, data));
+			}
+		});
+
 		return future;
+	}
+
+	private static void closeQuietly(AsynchronousFileChannel channel) {
+		try {
+			channel.close();
+		} catch (IOException e) {
+			Hunt.LOGGER.error("Unable to close file channel.", e);
+		}
 	}
 
 	/**
@@ -119,14 +125,12 @@ public abstract class Utils {
 	public static CompletableFuture<Boolean> readFileAsync(String filePath, String filename,
 	                                                       Consumer<String> callback) {
 		CompletableFuture<Boolean> future = new CompletableFuture<>();
-		ExecutorService executor = Executors.newSingleThreadExecutor();
 
 		Path path = Paths.get(new File("").getAbsolutePath() + filePath, filename);
 		File file = path.toFile();
 
 		if (!file.exists()) {
 			future.complete(false);
-			executor.shutdown();
 			return future;
 		}
 
@@ -143,12 +147,9 @@ public abstract class Utils {
 
 			callback.accept(fileContent);
 
-			fileChannel.close();
-			executor.shutdown();
 			future.complete(true);
 		} catch (Exception e) {
 			future.complete(readFileSync(file, callback));
-			executor.shutdown();
 		}
 
 		return future;
@@ -202,39 +203,35 @@ public abstract class Utils {
 	}
 
 	public static String parseLongDate(long time) {
-		// 1000 ms in 1 s
-		// 60s in 1 m
-		// 60m in 1 h
-		// 24h in 1 d
 		long second = 1000;
 		long minute = second * 60;
 		long hour = minute * 60;
 		long day = hour * 24;
 
-		long timeLeft = time;
-		String output = "";
+		long timeLeft = Math.max(0, time);
+		StringBuilder output = new StringBuilder();
 
-		if (timeLeft > day) {
-			output += (time - (time % day)) / day + "d ";
-			timeLeft = timeLeft % day;
+		if (timeLeft >= day) {
+			output.append(timeLeft / day).append("d ");
+			timeLeft %= day;
 		}
 
-		if (timeLeft > hour) {
-			output += (timeLeft - (timeLeft % hour)) / hour + "h ";
-			timeLeft = timeLeft % hour;
+		if (timeLeft >= hour) {
+			output.append(timeLeft / hour).append("h ");
+			timeLeft %= hour;
 		}
 
-		if (timeLeft > minute) {
-			output += (timeLeft - (timeLeft % minute)) / minute + "m ";
-			timeLeft = timeLeft % minute;
+		if (timeLeft >= minute) {
+			output.append(timeLeft / minute).append("m ");
+			timeLeft %= minute;
 		}
 
-		if (timeLeft > second) {
-			output += (timeLeft - (timeLeft % second)) / second + "s ";
-			timeLeft = timeLeft % second;
+		// Always show seconds when nothing else is shown, so the output is never empty.
+		if (timeLeft >= second || output.length() == 0) {
+			output.append(timeLeft / second).append("s ");
 		}
 
-		return output;
+		return output.toString();
 	}
 
 	public static String capitaliseFirst(String message) {
@@ -289,12 +286,12 @@ public abstract class Utils {
 		CommandDispatcher<CommandSourceStack> dispatcher =
 				Hunt.server.getCommands().getDispatcher();
 		for (String command : commands) {
+			String formatted = Utils.formatPlaceholders(command, player, pokemon, price);
 			try {
-				dispatcher.execute(
-						Utils.formatPlaceholders(command, player, pokemon, price),
-						Hunt.server.createCommandSourceStack());
-			} catch (CommandSyntaxException ex) {
-				throw new RuntimeException(ex);
+				dispatcher.execute(formatted, Hunt.server.createCommandSourceStack());
+			} catch (Exception ex) {
+				// Log and carry on so one broken command doesn't stop the other rewards.
+				Hunt.LOGGER.error("Failed to run hunt reward command \"" + formatted + "\": " + ex.getMessage());
 			}
 		}
 	}

@@ -8,6 +8,7 @@ import ca.landonjw.gooeylibs2.api.helpers.PaginationHelper;
 import ca.landonjw.gooeylibs2.api.page.LinkedPage;
 import ca.landonjw.gooeylibs2.api.template.types.ChestTemplate;
 import com.cobblemon.mod.common.item.PokemonItem;
+import com.cobblemon.mod.common.pokemon.Species;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.component.DataComponents;
@@ -17,6 +18,8 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Unit;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomModelData;
 import net.minecraft.world.item.component.ItemLore;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.command.subcommand.RefreshCommand;
@@ -27,13 +30,15 @@ import org.pokesplash.hunt.util.Utils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.List;
 
 /**
  * Creates the mods base command.
  */
 public class HuntCommand extends BaseCommand {
+
+	// Highest national dex number the icon pack has an icon for.
+	private static final int MAX_ICON_DEX = 1025;
 
 	/**
 	 * Constructor to create a new comand.
@@ -62,20 +67,18 @@ public class HuntCommand extends BaseCommand {
 			 *  Creates the UI
 			 */
 
-			List<Button> hunts = new ArrayList<>();
-			for (SingleHunt hunt :
-					Hunt.config.isIndividualHunts() ?
-							Hunt.manager.getPlayerHunts(sender.getUUID()).getHunts().values() :
-							Hunt.hunts.getHunts().values()) {
-				List<Component> lore = new ArrayList<>();
+			Style aqua = createStyle("aqua");
+			Style blue = createStyle("blue");
+			Style dark_green = createStyle("dark_green");
+			Style dark_purple = createStyle("dark_purple");
+			Style light_purple = createStyle("light_purple");
+			Style green = createStyle("green");
+			Style red = createStyle("red");
+			Style yellow = createStyle("yellow");
 
-				Style aqua = createStyle("aqua");
-				Style blue = createStyle("blue");
-				Style dark_green = createStyle("dark_green");
-				Style dark_purple = createStyle("dark_purple");
-				Style green = createStyle("green");
-				Style red = createStyle("red");
-				Style yellow = createStyle("yellow");
+			List<Button> hunts = new ArrayList<>();
+			for (SingleHunt hunt : Hunt.getHuntsFor(sender.getUUID()).getHuntValues()) {
+				List<Component> lore = new ArrayList<>();
 
 				boolean isShiny = hunt.getPokemon().getShiny();
 
@@ -112,19 +115,19 @@ public class HuntCommand extends BaseCommand {
 					lore.add(Component.translatable("cobblemon.ui.info.nature").setStyle(dark_purple)
 							.append(Component.literal(": "))
 							.append(Component.translatable(hunt.getPokemon().getNature().getDisplayName())
-									.setStyle(Style.EMPTY.withColor(TextColor.parseColor("light_purple").getOrThrow()))));
+									.setStyle(light_purple)));
 				}
 
 				if (hunt.getPrice() > 0) {
 					lore.add(Component.literal(Hunt.language.getReward() + hunt.getPriceAsString()));
 				}
 
-				lore.add(Component.literal(Hunt.language.getTimeRemaining() + Utils.parseLongDate(hunt.getEndtime() - new Date().getTime())));
+				lore.add(Component.literal(Hunt.language.getTimeRemaining() + Utils.parseLongDate(hunt.getEndtime() - System.currentTimeMillis())));
 
 				Hunt.language.getLore().get(hunt.getBucket()).forEach(l -> lore.add(Component.literal(l)));
 
 				GooeyButton button = GooeyButton.builder()
-						.display(PokemonItem.from(hunt.getPokemon(), 1))
+						.display(createDisplayItem(hunt))
 						.with(DataComponents.CUSTOM_NAME, title)
 						.with(DataComponents.LORE, new ItemLore(lore))
 						.build();
@@ -160,6 +163,25 @@ public class HuntCommand extends BaseCommand {
 		}
 
 		return 1;
+	}
+
+	/**
+	 * Creates the item shown for a hunt: the Pokemon model, or a species icon from a resource pack.
+	 * The icon pack (same format as Cobblemon Bingo's) overrides the configured item with
+	 * custom_model_data = national dex number, and 0 as a fallback icon.
+	 */
+	private ItemStack createDisplayItem(SingleHunt hunt) {
+		if (!Hunt.config.isUsePackIcons()) {
+			return PokemonItem.from(hunt.getPokemon(), 1);
+		}
+
+		Species species = hunt.getPokemon().getSpecies();
+		int dexNumber = species.getNationalPokedexNumber();
+		boolean hasIcon = !species.getLabels().contains("custom") && dexNumber > 0 && dexNumber <= MAX_ICON_DEX;
+
+		ItemStack stack = Utils.parseItemId(Hunt.config.getPackIconItem());
+		stack.set(DataComponents.CUSTOM_MODEL_DATA, new CustomModelData(hasIcon ? dexNumber : 0));
+		return stack;
 	}
 
 	private Style createStyle(String colour) {
