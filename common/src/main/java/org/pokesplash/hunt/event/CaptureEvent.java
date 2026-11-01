@@ -7,6 +7,7 @@ import kotlin.Unit;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import org.pokesplash.hunt.Hunt;
+import org.pokesplash.hunt.api.economy.HuntEconomy;
 import org.pokesplash.hunt.api.economy.HuntEconomyProvider;
 import org.pokesplash.hunt.api.event.HuntEvents;
 import org.pokesplash.hunt.api.event.events.CompletedEvent;
@@ -14,8 +15,10 @@ import org.pokesplash.hunt.broadcast.BroadcastType;
 import org.pokesplash.hunt.hunts.CurrentHunts;
 import org.pokesplash.hunt.hunts.HuntTarget;
 import org.pokesplash.hunt.hunts.SingleHunt;
+import org.pokesplash.hunt.util.CommandResult;
 import org.pokesplash.hunt.util.Utils;
 
+import java.util.List;
 import java.util.UUID;
 
 public abstract class CaptureEvent {
@@ -77,21 +80,33 @@ public abstract class CaptureEvent {
 		HuntEvents.COMPLETED.trigger(new CompletedEvent(hunt, player.getUUID()));
 
 		double paid = 0;
+		PayoutLog.Outcome outcome = PayoutLog.Outcome.NO_PRICE;
+		String economyName = null;
+		String economyError = null;
 
 		// Checks there's a price.
 		if (price > 0) {
 			try {
 				// Performs the transaction.
-				boolean success = HuntEconomyProvider.getHighestEconomy().add(player.getUUID(), price);
+				HuntEconomy economy = HuntEconomyProvider.getHighestEconomy();
+				economyName = economy.getClass().getSimpleName();
+				boolean success = economy.add(player.getUUID(), price);
 
 				if (success) {
 					paid = price;
+					outcome = PayoutLog.Outcome.PAID;
 
 					player.sendSystemMessage(Component.literal(Utils.formatPlaceholders(
 							Hunt.language.getPayMessage(), player, pokemon, price
 					)));
+				} else {
+					outcome = PayoutLog.Outcome.DECLINED;
+					Hunt.LOGGER.warn("The economy " + economyName + " refused to pay " + price + " for a hunt. "
+							+ describe(player, hunt.getId(), pokemon));
 				}
 			} catch (Exception | LinkageError ex) {
+				outcome = PayoutLog.Outcome.ERROR;
+				economyError = ex.toString();
 				Hunt.LOGGER.error("Could not pay " + price + " for a hunt. "
 						+ describe(player, hunt.getId(), pokemon), ex);
 			}
@@ -104,9 +119,21 @@ public abstract class CaptureEvent {
 					+ describe(player, hunt.getId(), pokemon), ex);
 		}
 
-		// Runs commands (each command is guarded in runCommands).
+		// Runs commands (each command is also guarded in runCommands).
+		List<CommandResult> commandResults = List.of();
 		if (hunt.getCommands() != null) {
-			Utils.runCommands(hunt.getCommands(), player, pokemon, price);
+			try {
+				commandResults = Utils.runCommands(hunt.getCommands(), player, pokemon, price);
+			} catch (Exception ex) {
+				Hunt.LOGGER.error("Could not run the hunt reward commands. "
+						+ describe(player, hunt.getId(), pokemon), ex);
+			}
+		}
+
+		try {
+			PayoutLog.record(player, hunt, pokemon, price, economyName, outcome, paid, economyError, commandResults);
+		} catch (Exception ex) {
+			Hunt.LOGGER.error("Could not write the payout log. " + describe(player, hunt.getId(), pokemon), ex);
 		}
 	}
 

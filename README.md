@@ -48,6 +48,7 @@ A command that contains `{player}` is skipped, with a warning in the log, if the
 
 - **Blacklist:** an entry blocks a species and all its forms (`"Vulpix"`), or a single form with `Species-Form` (`"Vulpix-Alola"`).
 - **Custom prices:** an entry with a `form` wins over an entry for the whole species.
+- **Payout log:** every completed hunt adds one JSON line to `config/hunt/payouts.log` (never overwritten) and a `Hunt payout: …` line to the server log. Fields: `time` (UTC), `uuid`, `name`, `huntId`, `target` (`species/form`), `bucket`, `price`, `economy`, `outcome`, `paid`, `error`, `caughtPokemon` (the caught Pokemon's UUID) and `commands` (each with `command`, `status` and `result`). `outcome` is `PAID`, `DECLINED` (the economy refused), `ERROR` (the economy failed, see `error`) or `NO_PRICE`. A command's `status` is `RAN`, `SKIPPED_UNSAFE_NAME` or `FAILED`. To find a player's payouts: `grep '"uuid":"<uuid>"' config/hunt/payouts.log`, or with jq: `jq -c 'select(.name == "Steve")' config/hunt/payouts.log`.
 - **Icons:** `usePackIcons` (on by default) shows species icons from a resource pack that overrides `packIconItem` (default `minecraft:gray_dye`) with `custom_model_data` set to the National Pokedex number, and `0` as a fallback icon. Forms use the base species icon.
 
 

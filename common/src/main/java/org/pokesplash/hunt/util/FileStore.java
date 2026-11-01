@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -60,6 +61,14 @@ public final class FileStore {
 	}
 
 	/**
+	 * Queues a line to be appended to a file on the background thread. Lines keep their order, and
+	 * {@link #writeSync} on server shutdown waits for them to be written.
+	 */
+	public static void appendAsync(String filename, String line) {
+		WRITER.execute(() -> append(filename, line));
+	}
+
+	/**
 	 * Writes a file and waits for it, and for any queued writes, to finish. Used on server shutdown.
 	 */
 	public static void writeSync(String filename, String data) {
@@ -83,6 +92,17 @@ public final class FileStore {
 			Hunt.LOGGER.error("A copy of the unreadable file was saved to " + backup);
 		} catch (IOException e) {
 			Hunt.LOGGER.error("Could not back up " + path, e);
+		}
+	}
+
+	private static void append(String filename, String line) {
+		Path path = path(filename);
+		try {
+			Files.createDirectories(DIRECTORY);
+			Files.writeString(path, line + "\n", StandardCharsets.UTF_8,
+					StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+		} catch (IOException e) {
+			Hunt.LOGGER.error("Could not append to " + path + ": " + line, e);
 		}
 	}
 

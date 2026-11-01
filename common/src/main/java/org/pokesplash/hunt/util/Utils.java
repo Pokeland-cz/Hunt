@@ -24,6 +24,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
@@ -289,29 +290,37 @@ public abstract class Utils {
 	/**
 	 * Runs the reward commands as the server. A command that uses {player} is skipped if the player's
 	 * name isn't safe to put into a command (it could be a selector like @a); commands using {uuid} still run.
+	 * @return what happened to each command, for the payout log.
 	 */
-	public static void runCommands(ArrayList<String> commands, ServerPlayer player, Pokemon pokemon, double price) {
+	public static List<CommandResult> runCommands(ArrayList<String> commands, ServerPlayer player, Pokemon pokemon,
+												  double price) {
+		List<CommandResult> results = new ArrayList<>();
 		CommandDispatcher<CommandSourceStack> dispatcher =
 				Hunt.server.getCommands().getDispatcher();
 		String name = player == null ? null : player.getName().getString();
 		for (String command : commands) {
+			if (command == null) {
+				continue;
+			}
+			String formatted = command;
 			try {
-				if (command == null) {
-					continue;
-				}
 				if (player != null && command.contains("{player}") && !PlayerNames.isCommandSafe(name)) {
 					Hunt.LOGGER.warn("Skipped hunt reward command \"" + command + "\" for player " + player.getUUID()
 							+ " (name \"" + name + "\"): the name is not safe to use in a command. "
 							+ "Use {uuid} instead of {player} where the command accepts it.");
+					results.add(new CommandResult(command, command, CommandResult.Status.SKIPPED_UNSAFE_NAME, 0));
 					continue;
 				}
-				String formatted = formatPlaceholders(command, player, pokemon, price);
-				dispatcher.execute(formatted, Hunt.server.createCommandSourceStack());
+				formatted = formatPlaceholders(command, player, pokemon, price);
+				int result = dispatcher.execute(formatted, Hunt.server.createCommandSourceStack());
+				results.add(new CommandResult(command, formatted, CommandResult.Status.RAN, result));
 			} catch (Exception ex) {
 				// Log and carry on so one broken command doesn't stop the other rewards.
 				Hunt.LOGGER.error("Failed to run hunt reward command \"" + command + "\" for player "
 						+ (player == null ? "null" : player.getUUID()) + ": " + ex.getMessage());
+				results.add(new CommandResult(command, formatted, CommandResult.Status.FAILED, 0));
 			}
 		}
+		return results;
 	}
 }

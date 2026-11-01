@@ -8,11 +8,12 @@ Značení: **[ověřeno]** = viděno v kódu Hunt nebo ve zdrojácích/bytecode 
 
 **Revize 1 (2026-11-01), odpovědi provozovatele:** `individualHunts` se nepoužívá, server běží za **Velocity**, měna jde **převádět mezi hráči** a reward příkazy **obsahují `{player}`**. Podle toho jsou upravené závažnosti (HUNT-005 a HUNT-006 jsou teď latentní), shrnutí, kapitola 7 (doporučení se změnilo) a kapitola 8. Podrobnosti jsou v kapitole 4.0.
 
-**Stav oprav (2026-11-01):**
+**Stav oprav (2026-11-02):**
 | Krok (7.4) | Stav | Poznámka |
 |---|---|---|
-| 0 – hotfix bezpečnosti (kapitola 9) | ✅ **Hotovo v kódu (1.3.2)**, ⏳ čeká test na serveru | Body A–I z 9.1 hotové. Ověření 9.2/1 (build, `-Xlint`) a 9.2/2 (`PlayerNames` + `String.replace`) prošlo. 9.2/3 (testovací server, scénáře a–f) **zatím neproběhlo**. |
-| 1–9 | ⬜ Neprovedeno | |
+| 0 – hotfix bezpečnosti (kapitola 9) | ✅ **Hotovo a otestováno (1.3.2)** | Body A–I z 9.1 hotové. Ověření 9.2/1 (build, `-Xlint`), 9.2/2 (`PlayerNames` + `String.replace`) a 9.2/3 (testovací server) prošlo (2026-11-02). Zbývá nasazení na produkci podle 9.3. |
+| 1 – log výplat (HUNT-014) | ✅ **Hotovo a otestováno (1.3.2)** | Každé splnění zapíše řádek do `config/hunt/payouts.log` (JSON Lines) a INFO do `latest.log`. Nově se loguje i `success=false` od ekonomiky (WARN, `DECLINED`). Vyjde v jednom releasu s krokem 0. Build zelený, test na serveru (9.2/3 g–l) prošel (2026-11-02). |
+| 2–9 | ⬜ Neprovedeno | |
 
 ---
 
@@ -371,7 +372,7 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 | # | Krok | Řeší | Náročnost |
 |---|---|---|---|
 | 0 | ✅ **HOTOVO (1.3.2)** · **Hotfix bezpečnosti:** substituce placeholderů přes `String.replace` (literál), validace jména `^[A-Za-z0-9_]{1,16}$` před spuštěním příkazů (při neshodě příkazy přeskočit + WARN), nový placeholder `{uuid}`; `try/catch (Throwable)` kolem celého capture handleru, `Hunt.check()` a každého `HuntEvents` listeneru | 001, 002, 003 | S |
-| 1 | **Log výplat:** jeden INFO řádek na completion (`uuid, jméno, huntId, druh/forma, bucket, cena, výsledek ekonomiky, provedené příkazy`), ideálně do `config/hunt/payouts.log` | 014 | S |
+| 1 | ✅ **HOTOVO (1.3.2)** · **Log výplat:** jeden INFO řádek na completion (`uuid, jméno, huntId, druh/forma, bucket, cena, výsledek ekonomiky, provedené příkazy`), ideálně do `config/hunt/payouts.log` | 014 | S |
 | 2 | **Config se nesmí přepsat:** rozlišit „neexistuje“ a „nečitelný“; při chybě parsování na startu běžet bez odměn + ERROR, při `/hunt reload` ponechat starý config; config a lang zapisovat přes `FileStore` (atomicky); opravit migraci langu; `FileStore.read` při IOException neházet „soubor neexistuje“ | 004, 012, 016 | M |
 | 3 | **Testy:** JUnit 5 v `common`; testy substituce (`@a`, `Ash$1`, `a\`, `x;y`, `"`), `RarityConfig.getRandomRarity`, načítání rozbitého configu | 015 (část) | S |
 | 4 | **`CompletionService`:** vyčlenit výplatní tok z `CaptureEvent` (claim → log PENDING → ekonomika → příkazy jen při úspěchu → log DONE → stats), po completion vynutit uložení `hunts.json`; testy (selhání ekonomiky, dvojí completion) | 007 | M |
@@ -399,9 +400,9 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 
 ---
 
-## 9. Plán kroku 0: hotfix bezpečnosti (revize 2) · ✅ HOTOVO v kódu (1.3.2)
+## 9. Plán kroku 0: hotfix bezpečnosti (revize 2) · ✅ HOTOVO a otestováno (1.3.2)
 
-**Stav:** Změny A–I z 9.1 jsou implementované. Z 9.2 prošly body 1 (build zelený, `-Xlint:all` bez nových varování, zůstává jen známé `[this-escape]` v `HuntForge`) a 2 (skript proti `PlayerNames` a `String.replace`: bezpečné je jen `Normal_1`, žádná výjimka, jméno se dosadí doslova). **Bod 3 (testovací server, scénáře a–f) a nasazení podle 9.3 zatím neproběhly.** Odchylka od plánu: v individuálním režimu je `manager.checkOnlinePlayers()` chráněné jako celek, ne po jednotlivých huntech (režim se nepoužívá, `HuntManager` jsem neměnil). Build vypisuje „Could not remap …-sources.jar fully“ (NPE v Mercury). Ten se objevuje i na 1.3.1 a týká se jen jaru se zdrojáky.
+**Stav:** Změny A–I z 9.1 jsou implementované. Z 9.2 prošly body 1 (build zelený, `-Xlint:all` bez nových varování, zůstává jen známé `[this-escape]` v `HuntForge`) a 2 (skript proti `PlayerNames` a `String.replace`: bezpečné je jen `Normal_1`, žádná výjimka, jméno se dosadí doslova). **Bod 3 (testovací server, scénáře a–f a pro krok 1 scénáře g–l) prošel 2026-11-02. Nasazení podle 9.3 zatím neproběhlo.** Odchylka od plánu: v individuálním režimu je `manager.checkOnlinePlayers()` chráněné jako celek, ne po jednotlivých huntech (režim se nepoužívá, `HuntManager` jsem neměnil). Build vypisuje „Could not remap …-sources.jar fully“ (NPE v Mercury). Ten se objevuje i na 1.3.1 a týká se jen jaru se zdrojáky.
 
 **Cíl:** Odstranit HUNT-001, HUNT-002 a HUNT-003 přímo v módu, aby bezpečnost nestála jen na AuthMe, a aby žádná výjimka z Hunt nemohla shodit server.
 **Mimo rozsah** (řeší pozdější kroky): log výplat (krok 1), config a přepisování souborů (krok 2), testy v Gradle (krok 3), transakční výplata (krok 4), `requires` (krok 5).
@@ -433,6 +434,13 @@ Mimo rozsah zůstávají `Broadcaster`, `CurrentHunts`, `SingleHunt`, config a l
    - d) Rozbitý config: do `customPrices` přidat `{"species": null}` a dát `/hunt reload` → chycení hunt Pokémona → **bez pádu**, výplata proběhne, v logu je ERROR o neúspěšném náhradním huntu, počet huntů klesne o 1. Po opravě configu a `/hunt reload` se hunty doplní.
    - e) Totéž s krátkým `huntDuration` (1 minuta), aby se chyba projevila v ticku: bez pádu, ERROR v logu.
    - f) Restart serveru → `hunts.json` a `stats.json` se načtou beze změny (formát je stejný).
+   - **Krok 1 (log výplat), stejný release:**
+   - g) Ve scénáři a) přibude v `config/hunt/payouts.log` 1 řádek s `outcome` `PAID` a příkazy `RAN`, v `latest.log` je INFO „Hunt payout: …“.
+   - h) Ve scénáři b) má příkaz s `{player}` `SKIPPED_UNSAFE_NAME`, příkaz s `{uuid}` má `RAN` a jméno je v JSON správně escapované.
+   - i) Rozbitá ekonomika (např. `economy: PEBBLES` bez Pebbles módu) → `outcome` `ERROR` s textem chyby v `error`, `paid` 0.
+   - j) Hunt s cenou 0 → `outcome` `NO_PRICE`. Neplatný reward příkaz → `status` `FAILED` a ostatní příkazy proběhnou.
+   - k) Restart nebo `/stop` hned po chycení → řádek je v souboru a soubor se nepřepíše, jen se k němu připisuje.
+   - l) `jq -c . config/hunt/payouts.log` načte každý řádek.
 4. Kontrola logu: žádné ERROR ani WARN ve scénáři a) a žádný stacktrace z Hunt při normálním hraní.
 
 ### 9.3 Nasazení a rollback
