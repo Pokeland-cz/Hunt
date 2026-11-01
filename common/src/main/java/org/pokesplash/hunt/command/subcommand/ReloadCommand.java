@@ -9,8 +9,6 @@ import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.util.Subcommand;
 import org.pokesplash.hunt.util.Utils;
 
-import java.util.ArrayList;
-import java.util.UUID;
 
 public class ReloadCommand extends Subcommand {
 
@@ -45,13 +43,8 @@ public class ReloadCommand extends Subcommand {
 	@Override
 	public int run(CommandContext<CommandSourceStack> context) {
 
-		// Removes current hunts, the case the config size changes.
-		ArrayList<UUID> uuids = new ArrayList<>(Hunt.hunts.getHunts().keySet());
-		for (UUID hunt : uuids) {
-			Hunt.hunts.removeHunt(hunt, true);
-		}
-
-		Hunt.load();
+		// Keeps the current hunts; they're trimmed or topped up if the hunt amount changed.
+		Hunt.reload();
 
 		context.getSource().sendSystemMessage(Component.literal(Utils.formatMessage(
 				Hunt.language.getReloadMessage(),

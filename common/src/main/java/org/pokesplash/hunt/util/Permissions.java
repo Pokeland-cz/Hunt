@@ -25,6 +25,8 @@ public class Permissions {
 		createPermission("HuntReload", "hunt.reload", 2);
 		createPermission("HuntRefresh", "hunt.refresh", 2);
 		createPermission("HuntDebug", "hunt.debug", 2);
+		createPermission("HuntStats", "hunt.stats", 0);
+		createPermission("HuntTop", "hunt.top", 0);
 	}
 
 	/**

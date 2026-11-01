@@ -24,6 +24,8 @@ import net.minecraft.world.item.component.ItemLore;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.command.subcommand.RefreshCommand;
 import org.pokesplash.hunt.command.subcommand.ReloadCommand;
+import org.pokesplash.hunt.command.subcommand.StatsCommand;
+import org.pokesplash.hunt.command.subcommand.TopCommand;
 import org.pokesplash.hunt.hunts.SingleHunt;
 import org.pokesplash.hunt.util.BaseCommand;
 import org.pokesplash.hunt.util.Utils;
@@ -47,7 +49,7 @@ public class HuntCommand extends BaseCommand {
 		// Super needs the command, a list of aliases, permission and array of subcommands.
 		super("hunt", Arrays.asList("hunts"),
 				Hunt.permissions.getPermission("HuntBase"), Arrays.asList(new ReloadCommand(),
-						new RefreshCommand()));
+						new RefreshCommand(), new StatsCommand(), new TopCommand()));
 	}
 
 	// Runs when the base command is run with no subcommands.

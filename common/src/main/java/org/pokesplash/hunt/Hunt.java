@@ -7,12 +7,13 @@ import org.pokesplash.hunt.broadcast.Broadcaster;
 import org.pokesplash.hunt.command.basecommand.HuntCommand;
 import org.pokesplash.hunt.config.Config;
 import org.pokesplash.hunt.config.Lang;
-import org.pokesplash.hunt.config.Logs;
 import org.pokesplash.hunt.event.CaptureEvent;
 import org.pokesplash.hunt.hunts.CurrentHunts;
 import org.pokesplash.hunt.hunts.HuntManager;
+import org.pokesplash.hunt.hunts.HuntStorage;
 import org.pokesplash.hunt.hunts.SingleHunt;
 import org.pokesplash.hunt.hunts.SpawnRates;
+import org.pokesplash.hunt.stats.HuntStats;
 import org.pokesplash.hunt.util.CommandsRegistry;
 import org.pokesplash.hunt.util.Permissions;
 
@@ -31,8 +32,11 @@ public class Hunt
 	public static CurrentHunts hunts = new CurrentHunts(null);
 	public static HuntManager manager = new HuntManager();
 	public static Lang language = new Lang();
-	public static final Logs logs = new Logs();
+	public static final HuntStorage storage = new HuntStorage();
+	public static final HuntStats stats = new HuntStats();
 	public static MinecraftServer server;
+	// True once load() has run, so a failed startup never overwrites the saved hunts with empty data.
+	private static boolean loaded = false;
 
 	public static void init() {
 		// Adds command to registry
@@ -41,31 +45,75 @@ public class Hunt
 	}
 
 	/**
-	 * Initializes stuff.
+	 * Called when the server has started: loads configs, saved hunts and stats.
 	 */
 	public static void load() {
+		loadConfigs();
+
+		// Start from a clean state (statics survive between worlds in singleplayer), then restore saved hunts.
+		hunts = new CurrentHunts(null);
+		manager = new HuntManager();
+		storage.load();
+		stats.init();
+
+		fillHunts();
+		loaded = true;
+	}
+
+	/**
+	 * Reloads the configs. Current hunts are kept, but trimmed or topped up to the configured amount.
+	 */
+	public static void reload() {
+		loadConfigs();
+		fillHunts();
+	}
+
+	/**
+	 * Called when the server is stopping: saves hunts and stats.
+	 */
+	public static void stop() {
+		if (!loaded) {
+			return;
+		}
+		storage.saveNow();
+		stats.saveNow();
+		loaded = false;
+	}
+
+	private static void loadConfigs() {
 		config.init();
 		language.init();
 		broadcaster.init();
 		spawnRates.init();
-		logs.init();
+	}
 
-		// Hunts are only touched on the server thread, so no locking is needed.
+	/**
+	 * Brings the hunts in line with the config: removes extras and generates missing ones.
+	 * Hunts are only touched on the server thread, so no locking is needed.
+	 */
+	private static void fillHunts() {
 		if (!config.isIndividualHunts()) {
+			hunts.trimToLimit();
 			hunts.init();
 		}
 		manager.init();
+		storage.markDirty();
 	}
 
 	/**
 	 * Replaces expired hunts. Must be called from the server thread.
 	 */
 	public static void check() {
+		if (!loaded) {
+			return;
+		}
 		if (config.isIndividualHunts()) {
 			manager.checkOnlinePlayers();
 		} else {
 			hunts.getHuntValues().forEach(SingleHunt::check);
 		}
+		storage.saveIfDirty();
+		stats.saveIfDirty();
 	}
 
 	/**

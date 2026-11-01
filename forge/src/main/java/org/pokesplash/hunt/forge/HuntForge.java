@@ -7,6 +7,7 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.util.CommandsRegistry;
@@ -26,6 +27,11 @@ public class HuntForge {
     @SubscribeEvent
     public void serverStartedEvent(ServerStartedEvent event) {
         Hunt.load();
+    }
+
+    @SubscribeEvent
+    public void serverStoppingEvent(ServerStoppingEvent event) {
+        Hunt.stop();
     }
 
     @SubscribeEvent

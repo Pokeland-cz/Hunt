@@ -34,8 +34,17 @@ public class HuntManager {
 	 * @return the player's hunts, or null if individual hunts are disabled.
 	 */
 	public CurrentHunts getOrCreatePlayerHunts(UUID player) {
-		addPlayer(player);
+		if (!playerHunts.containsKey(player)) {
+			addPlayer(player);
+		}
 		return playerHunts.get(player);
+	}
+
+	/**
+	 * Puts saved hunts back for a player.
+	 */
+	public void restorePlayerHunts(UUID player, CurrentHunts hunts) {
+		playerHunts.put(player, hunts);
 	}
 
 	public HashSet<UUID> getPlayers() {
@@ -62,13 +71,22 @@ public class HuntManager {
 		}
 	}
 
+	/**
+	 * Gives a player their hunts: creates them for a new player, or trims / tops up the hunts of an
+	 * existing player to the configured amount (it may have changed since they were made).
+	 */
 	public void addPlayer(UUID player) {
-		if (!Hunt.config.isIndividualHunts() || playerHunts.containsKey(player)) {
+		if (!Hunt.config.isIndividualHunts()) {
 			return;
 		}
-		CurrentHunts hunts = new CurrentHunts(player);
-		// Register before generating, so the player has hunts even if generation partially fails.
-		playerHunts.put(player, hunts);
+		CurrentHunts hunts = playerHunts.get(player);
+		if (hunts == null) {
+			hunts = new CurrentHunts(player);
+			// Register before generating, so the player has hunts even if generation partially fails.
+			playerHunts.put(player, hunts);
+		} else {
+			hunts.trimToLimit();
+		}
 		hunts.init();
 	}
 

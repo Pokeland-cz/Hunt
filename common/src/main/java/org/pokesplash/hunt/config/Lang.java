@@ -1,6 +1,7 @@
 package org.pokesplash.hunt.config;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonParser;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.old.LangOld;
 import org.pokesplash.hunt.util.Utils;
@@ -21,6 +22,15 @@ public class Lang extends Versioned {
 	private String reward;
 	private String timeRemaining;
 	private Lore lore;
+	private String statsHeader;
+	private String statsCompletions;
+	private String statsEarned;
+	private String statsRarities;
+	private String statsNotFound;
+	private String topHeaderCompletions;
+	private String topHeaderEarned;
+	private String topEntry;
+	private String topEmpty;
 
 	public Lang() {
 		super(Hunt.LANG_VERSION);
@@ -34,6 +44,15 @@ public class Lang extends Versioned {
 		reward = "§6Reward: §e";
 		timeRemaining = "§9Time Remaining: §b";
 		lore = new Lore();
+		statsHeader = "§5[Hunt] §eHunt stats for §6{player}§e:";
+		statsCompletions = "§7Hunts completed: §a{completions}";
+		statsEarned = "§7Money earned: §a{earned}";
+		statsRarities = "§7Common: §f{common} §7| Uncommon: §f{uncommon} §7| Rare: §f{rare} §7| Ultra Rare: §f{ultra_rare}";
+		statsNotFound = "§5[Hunt] §cNo hunt stats found for {player}.";
+		topHeaderCompletions = "§5[Hunt] §eTop hunters by hunts completed:";
+		topHeaderEarned = "§5[Hunt] §eTop hunters by money earned:";
+		topEntry = "§6#{rank} §e{player} §7- §a{completions} §7hunts, §a{earned} §7earned";
+		topEmpty = "§5[Hunt] §7Nobody has completed a hunt yet.";
 	}
 
 	public String getTitle() {
@@ -62,6 +81,33 @@ public class Lang extends Versioned {
 	}
 	public String getTimeRemaining() {
 		return timeRemaining;
+	}
+	public String getStatsHeader() {
+		return statsHeader;
+	}
+	public String getStatsCompletions() {
+		return statsCompletions;
+	}
+	public String getStatsEarned() {
+		return statsEarned;
+	}
+	public String getStatsRarities() {
+		return statsRarities;
+	}
+	public String getStatsNotFound() {
+		return statsNotFound;
+	}
+	public String getTopHeaderCompletions() {
+		return topHeaderCompletions;
+	}
+	public String getTopHeaderEarned() {
+		return topHeaderEarned;
+	}
+	public String getTopEntry() {
+		return topEntry;
+	}
+	public String getTopEmpty() {
+		return topEmpty;
 	}
 	public Lore getLore() {
 		return lore;
@@ -103,6 +149,20 @@ public class Lang extends Versioned {
 					reward = lang.getReward();
 					timeRemaining = lang.getTimeRemaining();
 					lore = lang.getLore();
+					statsHeader = lang.getStatsHeader();
+					statsCompletions = lang.getStatsCompletions();
+					statsEarned = lang.getStatsEarned();
+					statsRarities = lang.getStatsRarities();
+					statsNotFound = lang.getStatsNotFound();
+					topHeaderCompletions = lang.getTopHeaderCompletions();
+					topHeaderEarned = lang.getTopHeaderEarned();
+					topEntry = lang.getTopEntry();
+					topEmpty = lang.getTopEmpty();
+
+					// Older lang files don't have the stats messages yet, write them so they can be edited.
+					if (!JsonParser.parseString(el).getAsJsonObject().has("statsHeader")) {
+						write();
+					}
 				});
 
 		if (!futureRead.join()) {

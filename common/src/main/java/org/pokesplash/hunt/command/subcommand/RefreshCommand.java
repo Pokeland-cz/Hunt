@@ -19,7 +19,7 @@ import java.util.UUID;
 public class RefreshCommand extends Subcommand {
 
 	public RefreshCommand() {
-		super("§9Usage:\\n§3- hunt refresh <player>");
+		super("§9Usage:\\n§3- hunt refresh §7(global hunts)\\n§3- hunt refresh <player> §7(individual hunts)");
 	}
 
 	/**
@@ -37,7 +37,7 @@ public class RefreshCommand extends Subcommand {
 						return true;
 					}
 				})
-				.executes(this::showUsage)
+				.executes(this::refreshGlobal)
 				.then(Commands.argument("player", StringArgumentType.string())
 						.suggests((ctx, builder) -> {
 							for (String player : ctx.getSource().getServer().getPlayerNames()) {
@@ -49,6 +49,24 @@ public class RefreshCommand extends Subcommand {
 						.executes(this::run)
 				)
 				.build();
+	}
+
+	/**
+	 * Re-rolls all global hunts.
+	 */
+	private int refreshGlobal(CommandContext<CommandSourceStack> context) {
+		if (Hunt.config.isIndividualHunts()) {
+			return showUsage(context);
+		}
+
+		for (UUID hunt : new HashSet<>(Hunt.hunts.getHunts().keySet())) {
+			Hunt.hunts.removeHunt(hunt, false);
+		}
+		Hunt.hunts.init();
+
+		context.getSource().sendSystemMessage(Component.literal(Utils.formatMessage(
+				"§2Successfully refreshed the global hunts.", context.getSource().isPlayer())));
+		return 1;
 	}
 
 	/**

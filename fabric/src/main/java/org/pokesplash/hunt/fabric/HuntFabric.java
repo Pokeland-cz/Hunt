@@ -15,6 +15,7 @@ public class HuntFabric implements ModInitializer {
         Hunt.init();
         CommandRegistrationCallback.EVENT.register(CommandsRegistry::registerCommands);
         ServerLifecycleEvents.SERVER_STARTED.register(t -> Hunt.load());
+        ServerLifecycleEvents.SERVER_STOPPING.register(t -> Hunt.stop());
         ServerWorldEvents.LOAD.register((t, e) -> Hunt.server = t);
         ServerPlayConnectionEvents.JOIN.register((e, f, b) -> Hunt.manager.addPlayer(e.getPlayer().getUUID()));
         ServerTickEvents.END_SERVER_TICK.register(e -> {

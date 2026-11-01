@@ -1,14 +1,16 @@
 package org.pokesplash.hunt.hunts;
 
 import com.cobblemon.mod.common.pokemon.Pokemon;
-import com.cobblemon.mod.common.pokemon.Species;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import net.minecraft.core.RegistryAccess;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.config.CustomPrice;
 import org.pokesplash.hunt.config.RewardConfig;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
 import java.util.UUID;
 
 public class SingleHunt {
@@ -22,36 +24,31 @@ public class SingleHunt {
 	private Bucket bucket; // The spawn bucket of the Pokemon.
 
 	/**
-	 * Creates a new hunt for the given species.
+	 * Creates a new hunt for the given species and form.
 	 * @param owner the player who owns the hunt, or null for global hunts.
-	 * @param species the species to hunt.
-	 * @param bucket the rarity bucket of the species.
+	 * @param target the species and form to hunt.
+	 * @param bucket the rarity bucket of the target.
 	 */
-	public SingleHunt(UUID owner, Species species, Bucket bucket) {
+	public SingleHunt(UUID owner, HuntTarget target, Bucket bucket) {
 		id = UUID.randomUUID();
 		this.owner = owner;
 		this.bucket = bucket;
 
 		pokemon = new Pokemon();
-		pokemon.setSpecies(species);
+		pokemon.setSpecies(target.species());
+		// Forms are driven by aspects, so forcing the form's aspects gives e.g. an Alolan Vulpix.
+		if (!target.form().getAspects().isEmpty()) {
+			pokemon.setForcedAspects(new HashSet<>(target.form().getAspects()));
+		}
 
 		RewardConfig reward = Hunt.config.getRewards().get(bucket);
 		price = reward.getPrice();
 		commands = reward.getCommands();
 
-		// Checks for a custom price.
-		List<CustomPrice> customPrices = Hunt.config.getCustomPrices();
-		for (CustomPrice item : customPrices) {
-			// If species match
-			if (item.getSpecies().trim().equalsIgnoreCase(pokemon.getSpecies().getName().trim())) {
-				// If no form is given or the form matches, use price.
-				if (item.getForm().trim().equalsIgnoreCase("") ||
-						item.getForm().trim().equalsIgnoreCase(pokemon.getForm().getName().trim())) {
-					price = item.getReward().getPrice();
-					commands = item.getReward().getCommands();
-					break;
-				}
-			}
+		CustomPrice customPrice = findCustomPrice(pokemon);
+		if (customPrice != null) {
+			price = customPrice.getReward().getPrice();
+			commands = customPrice.getReward().getCommands();
 		}
 
 		pokemon.rollAbility();
@@ -59,6 +56,81 @@ public class SingleHunt {
 
 		// The hunt ends after the configured duration (in minutes).
 		endtime = System.currentTimeMillis() + Hunt.config.getHuntDuration() * 60_000L;
+	}
+
+	/**
+	 * Restores a saved hunt.
+	 */
+	private SingleHunt(UUID id, UUID owner, Pokemon pokemon, Bucket bucket, double price,
+	                   ArrayList<String> commands, long endtime) {
+		this.id = id;
+		this.owner = owner;
+		this.pokemon = pokemon;
+		this.bucket = bucket;
+		this.price = price;
+		this.commands = commands;
+		this.endtime = endtime;
+	}
+
+	/**
+	 * Finds the custom price for a Pokemon. An entry for its exact form wins over an entry for the
+	 * whole species (no form given).
+	 */
+	private static CustomPrice findCustomPrice(Pokemon pokemon) {
+		String species = pokemon.getSpecies().getName().trim();
+		String form = pokemon.getForm().getName().trim();
+		CustomPrice speciesMatch = null;
+
+		for (CustomPrice item : Hunt.config.getCustomPrices()) {
+			if (!item.getSpecies().trim().equalsIgnoreCase(species)) {
+				continue;
+			}
+			String itemForm = item.getForm() == null ? "" : item.getForm().trim();
+			if (itemForm.equalsIgnoreCase(form)) {
+				return item;
+			}
+			if (itemForm.isEmpty() && speciesMatch == null) {
+				speciesMatch = item;
+			}
+		}
+		return speciesMatch;
+	}
+
+	/**
+	 * Saves the hunt to JSON.
+	 */
+	public JsonObject toJson(RegistryAccess registryAccess) {
+		JsonObject json = new JsonObject();
+		json.addProperty("id", id.toString());
+		if (owner != null) {
+			json.addProperty("owner", owner.toString());
+		}
+		json.addProperty("bucket", bucket.name());
+		json.addProperty("price", price);
+		JsonArray commandArray = new JsonArray();
+		if (commands != null) {
+			commands.forEach(commandArray::add);
+		}
+		json.add("commands", commandArray);
+		json.addProperty("endtime", endtime);
+		json.add("pokemon", pokemon.saveToJSON(registryAccess, new JsonObject()));
+		return json;
+	}
+
+	/**
+	 * Loads a hunt saved with {@link #toJson}.
+	 * @throws RuntimeException if the data is invalid, e.g. the species no longer exists.
+	 */
+	public static SingleHunt fromJson(JsonObject json, RegistryAccess registryAccess) {
+		UUID id = UUID.fromString(json.get("id").getAsString());
+		UUID owner = json.has("owner") ? UUID.fromString(json.get("owner").getAsString()) : null;
+		Bucket bucket = Bucket.valueOf(json.get("bucket").getAsString());
+		double price = json.get("price").getAsDouble();
+		ArrayList<String> commands = new ArrayList<>();
+		json.getAsJsonArray("commands").forEach(element -> commands.add(element.getAsString()));
+		long endtime = json.get("endtime").getAsLong();
+		Pokemon pokemon = Pokemon.Companion.loadFromJSON(registryAccess, json.getAsJsonObject("pokemon"));
+		return new SingleHunt(id, owner, pokemon, bucket, price, commands, endtime);
 	}
 
 	/**

@@ -1,12 +1,12 @@
 package org.pokesplash.hunt.hunts;
 
 import com.cobblemon.mod.common.pokemon.Pokemon;
-import com.cobblemon.mod.common.pokemon.Species;
 import net.minecraft.server.level.ServerPlayer;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.broadcast.BroadcastType;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -17,7 +17,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class CurrentHunts {
 	private final UUID owner; // The owner of the current hunts.
 	private HashMap<UUID, SingleHunt> hunts; // List of current hunts.
-	private HashMap<UUID, Species> species; // List of species.
+	private HashMap<UUID, String> targets; // Target key (species + form) of each hunt.
 
 	/**
 	 * Constructor that generates a bunch of hunts when the server starts.
@@ -25,7 +25,7 @@ public class CurrentHunts {
 	public CurrentHunts(UUID owner) {
 		this.owner = owner;
 		hunts = new HashMap<>();
-		species = new HashMap<>();
+		targets = new HashMap<>();
 	}
 
 	/**
@@ -62,20 +62,20 @@ public class CurrentHunts {
 			return null;
 		}
 
-		// Species already being hunted can't be picked again.
-		Set<Species> taken = new HashSet<>(species.values());
+		// Species and forms already being hunted can't be picked again.
+		Set<String> taken = new HashSet<>(targets.values());
 
-		Bucket bucket = Hunt.config.getRarity().getRandomRarity(b -> hasAvailableSpecies(b, taken));
+		Bucket bucket = Hunt.config.getRarity().getRandomRarity(b -> hasAvailableTarget(b, taken));
 		if (bucket == null) {
 			Hunt.LOGGER.warn("Could not create a new hunt: no eligible species are left. "
 					+ "Check the blacklist and rarity settings.");
 			return null;
 		}
 
-		List<Species> candidates = Hunt.spawnRates.getEligibleSpecies(bucket).stream()
-				.filter(s -> !taken.contains(s))
+		List<HuntTarget> candidates = Hunt.spawnRates.getEligibleTargets(bucket).stream()
+				.filter(t -> !taken.contains(t.key()))
 				.toList();
-		Species chosen = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+		HuntTarget chosen = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
 
 		SingleHunt hunt = new SingleHunt(owner, chosen, bucket);
 
@@ -91,14 +91,56 @@ public class CurrentHunts {
 			Hunt.broadcaster.sendBroadcast(BroadcastType.STARTED, null, hunt.getPokemon(), hunt.getPrice());
 		}
 
-		species.put(hunt.getId(), chosen);
-		hunts.put(hunt.getId(), hunt);
+		put(hunt);
+		Hunt.storage.markDirty();
 		return hunt;
 	}
 
-	private static boolean hasAvailableSpecies(Bucket bucket, Set<Species> taken) {
-		for (Species s : Hunt.spawnRates.getEligibleSpecies(bucket)) {
-			if (!taken.contains(s)) {
+	/**
+	 * Adds a saved hunt back, without any broadcasts.
+	 * @return true if it was added, false if it's a duplicate target or the hunt limit is reached.
+	 */
+	public boolean restoreHunt(SingleHunt hunt) {
+		if (hunts.size() >= Hunt.config.getHuntAmount() || targets.containsValue(keyOf(hunt))) {
+			return false;
+		}
+		put(hunt);
+		return true;
+	}
+
+	/**
+	 * Removes hunts over the configured hunt amount (e.g. after it was lowered), soonest-ending first,
+	 * without broadcasts.
+	 */
+	public void trimToLimit() {
+		int excess = hunts.size() - Hunt.config.getHuntAmount();
+		if (excess <= 0) {
+			return;
+		}
+		hunts.values().stream()
+				.sorted(Comparator.comparingLong(SingleHunt::getEndtime))
+				.limit(excess)
+				.map(SingleHunt::getId)
+				.toList()
+				.forEach(id -> {
+					hunts.remove(id);
+					targets.remove(id);
+				});
+		Hunt.storage.markDirty();
+	}
+
+	private void put(SingleHunt hunt) {
+		hunts.put(hunt.getId(), hunt);
+		targets.put(hunt.getId(), keyOf(hunt));
+	}
+
+	private static String keyOf(SingleHunt hunt) {
+		return HuntTarget.key(hunt.getPokemon().getSpecies(), hunt.getPokemon().getForm());
+	}
+
+	private static boolean hasAvailableTarget(Bucket bucket, Set<String> taken) {
+		for (HuntTarget target : Hunt.spawnRates.getEligibleTargets(bucket)) {
+			if (!taken.contains(target.key())) {
 				return true;
 			}
 		}
@@ -120,7 +162,8 @@ public class CurrentHunts {
 	public SingleHunt removeHunt(UUID id, boolean broadcast) {
 		SingleHunt removedHunt = hunts.remove(id);
 		if (removedHunt != null) {
-			species.remove(id);
+			targets.remove(id);
+			Hunt.storage.markDirty();
 
 			// If broadcasts are enabled and the method call wants it broadcast, send it.
 			if (Hunt.config.isIndividualHunts()) {

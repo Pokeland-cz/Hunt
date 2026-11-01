@@ -45,7 +45,7 @@ public abstract class CaptureEvent {
 					HuntEvents.COMPLETED.trigger(new CompletedEvent(replacedHunt.getOldHunt(), player.getUUID()));
 				}
 
-//				Hunt.logs.addValue(player.getUUID(), price);
+				double paid = 0;
 
 				// Checks there's a price.
 				if (price > 0) {
@@ -55,6 +55,7 @@ public abstract class CaptureEvent {
 
 						// If the transaction was successful, replace the caught pokemon in hunt and send some messages.
 						if (success) {
+							paid = price;
 
 							player.sendSystemMessage(Component.literal(Utils.formatPlaceholders(
 									Hunt.language.getPayMessage(), player, pokemon, price
@@ -67,6 +68,8 @@ public abstract class CaptureEvent {
 						ex.printStackTrace();
 					}
 				}
+
+				Hunt.stats.recordCompletion(player, hunt.getBucket(), paid);
 
 				// Runs commands
 				if (hunt.getCommands() != null) {
