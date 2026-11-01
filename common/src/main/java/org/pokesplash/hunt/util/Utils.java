@@ -252,26 +252,31 @@ public abstract class Utils {
 		return message.substring(0, 1).toUpperCase() + message.substring(1).toLowerCase();
 	}
 
+	/**
+	 * Fills in the {player}, {uuid}, {pokemon} and {price} placeholders. Values are inserted literally,
+	 * so characters such as $ or \ in a name can't break the substitution.
+	 */
 	public static String formatPlaceholders(String message, ServerPlayer player, Pokemon pokemon, double price) {
-		String newMessage = message;
 		if (message == null) {
 			return "";
 		}
+		String newMessage = message;
 
 		if (player != null) {
-			newMessage = newMessage.replaceAll("\\{player\\}", player.getName().getString());
+			newMessage = newMessage.replace("{player}", player.getName().getString());
+			newMessage = newMessage.replace("{uuid}", player.getUUID().toString());
 		}
 
 		if (pokemon != null) {
-			newMessage = newMessage.replaceAll("\\{pokemon\\}", pokemon.getDisplayName(true).getString());
+			newMessage = newMessage.replace("{pokemon}", pokemon.getDisplayName(true).getString());
 		}
 
 		if (price != -1) {
 			DecimalFormat df = new DecimalFormat("0.##");
-			newMessage = newMessage.replaceAll("\\{price\\}", df.format(price));
+			newMessage = newMessage.replace("{price}", df.format(price));
 		}
 
-		return  newMessage;
+		return newMessage;
 	}
 
 	public static ItemStack parseItemId(String id) {
@@ -281,17 +286,31 @@ public abstract class Utils {
 		return ItemStack.parse(HolderLookup.Provider.create(Stream.empty()), tag).get();
 	}
 
+	/**
+	 * Runs the reward commands as the server. A command that uses {player} is skipped if the player's
+	 * name isn't safe to put into a command (it could be a selector like @a); commands using {uuid} still run.
+	 */
 	public static void runCommands(ArrayList<String> commands, ServerPlayer player, Pokemon pokemon, double price) {
-		// Run commands
 		CommandDispatcher<CommandSourceStack> dispatcher =
 				Hunt.server.getCommands().getDispatcher();
+		String name = player == null ? null : player.getName().getString();
 		for (String command : commands) {
-			String formatted = Utils.formatPlaceholders(command, player, pokemon, price);
 			try {
+				if (command == null) {
+					continue;
+				}
+				if (player != null && command.contains("{player}") && !PlayerNames.isCommandSafe(name)) {
+					Hunt.LOGGER.warn("Skipped hunt reward command \"" + command + "\" for player " + player.getUUID()
+							+ " (name \"" + name + "\"): the name is not safe to use in a command. "
+							+ "Use {uuid} instead of {player} where the command accepts it.");
+					continue;
+				}
+				String formatted = formatPlaceholders(command, player, pokemon, price);
 				dispatcher.execute(formatted, Hunt.server.createCommandSourceStack());
 			} catch (Exception ex) {
 				// Log and carry on so one broken command doesn't stop the other rewards.
-				Hunt.LOGGER.error("Failed to run hunt reward command \"" + formatted + "\": " + ex.getMessage());
+				Hunt.LOGGER.error("Failed to run hunt reward command \"" + command + "\" for player "
+						+ (player == null ? "null" : player.getUUID()) + ": " + ex.getMessage());
 			}
 		}
 	}

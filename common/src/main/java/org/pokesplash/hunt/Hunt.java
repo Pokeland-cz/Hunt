@@ -110,16 +110,49 @@ public class Hunt
 		if (!loaded) {
 			return;
 		}
+		// Runs in the server tick: every step is guarded, so a broken hunt or config can't crash the server.
+		// Missing hunts aren't topped up here (a broken config would spam the log every second);
+		// /hunt reload does that once the config is fixed.
 		if (config.isIndividualHunts()) {
-			manager.checkOnlinePlayers();
+			try {
+				manager.checkOnlinePlayers();
+			} catch (Exception ex) {
+				LOGGER.error("Failed to check individual hunts", ex);
+			}
 		} else {
-			hunts.getHuntValues().forEach(SingleHunt::check);
+			for (SingleHunt hunt : hunts.getHuntValues()) {
+				try {
+					hunt.check();
+				} catch (Exception ex) {
+					LOGGER.error("Failed to check hunt " + hunt.getId(), ex);
+				}
+			}
 		}
 		long now = System.currentTimeMillis();
 		if (now - lastSave >= SAVE_INTERVAL_MS) {
 			lastSave = now;
-			storage.saveIfDirty();
-			stats.saveIfDirty();
+			try {
+				storage.saveIfDirty();
+			} catch (Exception ex) {
+				LOGGER.error("Failed to save hunts", ex);
+			}
+			try {
+				stats.saveIfDirty();
+			} catch (Exception ex) {
+				LOGGER.error("Failed to save hunt stats", ex);
+			}
+		}
+	}
+
+	/**
+	 * Called when a player joins. Gives them their hunts if individual hunts are enabled.
+	 * @param player the player's UUID.
+	 */
+	public static void onPlayerJoin(UUID player) {
+		try {
+			manager.addPlayer(player);
+		} catch (Exception ex) {
+			LOGGER.error("Failed to set up hunts for player " + player, ex);
 		}
 	}
 

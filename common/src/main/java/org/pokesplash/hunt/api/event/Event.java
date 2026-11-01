@@ -1,5 +1,7 @@
 package org.pokesplash.hunt.api.event;
 
+import org.pokesplash.hunt.Hunt;
+
 import java.util.ArrayList;
 import java.util.function.Consumer;
 
@@ -27,10 +29,19 @@ public class Event<T> {
 		subscriptions.remove(subscription);
 	}
 
-	// Method used to trigger the event.
+	/**
+	 * Triggers the event. A failing subscriber is logged and doesn't stop the other subscribers
+	 * or the code that triggered the event.
+	 */
 	public void trigger(T t) {
-		for (Subscription<T> sub : subscriptions) {
-			sub.run(t);
+		// Iterate over a copy, so a subscriber can unsubscribe while the event runs.
+		for (Subscription<T> sub : new ArrayList<>(subscriptions)) {
+			try {
+				sub.run(t);
+			} catch (Exception ex) {
+				String type = t == null ? "null" : t.getClass().getSimpleName();
+				Hunt.LOGGER.error("A subscriber to the hunt event " + type + " failed", ex);
+			}
 		}
 	}
 }

@@ -41,7 +41,7 @@ public class HuntForge {
 
     @SubscribeEvent
     public void playerJoinEvent(PlayerEvent.PlayerLoggedInEvent event) {
-        Hunt.manager.addPlayer(event.getEntity().getUUID());
+        Hunt.onPlayerJoin(event.getEntity().getUUID());
     }
 
     @SubscribeEvent

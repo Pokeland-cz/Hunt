@@ -29,6 +29,21 @@ A hunt mod for [Cobblemon](https://cobblemon.com/). Allows players to gain money
 | `/hunt refresh <player>` | `hunt.refresh` | Re-rolls a player's individual hunts. |
 | `/hunt reload` | `hunt.reload` | Reloads the configs. Current hunts are kept and trimmed or topped up to the hunt amount. |
 
+## Placeholders
+
+Messages in `lang.json` and reward commands in `config.json` can use these placeholders:
+
+| Placeholder | Value |
+| --- | --- |
+| `{player}` | The player's name. |
+| `{uuid}` | The player's UUID. |
+| `{pokemon}` | The Pokemon's display name. |
+| `{price}` | The hunt's price. |
+
+Reward commands run as the server. **Use `{uuid}` instead of `{player}` wherever the command accepts an entity** (vanilla `give`, `effect`, `tp`, …), for example `give {uuid} minecraft:diamond 1`. For commands from other mods (e.g. economy commands), check first that they accept a UUID.
+
+A command that contains `{player}` is skipped, with a warning in the log, if the player's name has characters other than `A-Z`, `a-z`, `0-9` and `_` or is longer than 16 characters. Such names can only come from offline-mode servers or proxies, and could otherwise be used to change the command (e.g. a player named `@a`). Commands without `{player}` still run.
+
 ## Notes
 
 - **Blacklist:** an entry blocks a species and all its forms (`"Vulpix"`), or a single form with `Species-Form` (`"Vulpix-Alola"`).
