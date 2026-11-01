@@ -1,0 +1,166 @@
+{
+  "version": 1,
+  "players": {
+    "5fc2b986-0b28-5f57-9243-6bc785869906": {
+      "name": "AshKetchup",
+      "completions": 75,
+      "earned": 18450.0,
+      "completionsByRarity": {
+        "COMMON": 41,
+        "UNCOMMON": 22,
+        "RARE": 9,
+        "ULTRA_RARE": 3
+      }
+    },
+    "65c1bf5e-5fd3-5179-8976-a90fbe1535cd": {
+      "name": "MistyWaters",
+      "completions": 72,
+      "earned": 21780.5,
+      "completionsByRarity": {
+        "COMMON": 30,
+        "UNCOMMON": 25,
+        "RARE": 12,
+        "ULTRA_RARE": 5
+      }
+    },
+    "2ff0af86-1078-52ee-8afb-5a3f54648c39": {
+      "name": "BrockSolid",
+      "completions": 67,
+      "earned": 9120.0,
+      "completionsByRarity": {
+        "COMMON": 55,
+        "UNCOMMON": 10,
+        "RARE": 2
+      }
+    },
+    "2a1c65c8-463a-55de-bfe5-b962ecb4b2ff": {
+      "name": "PikaPal",
+      "completions": 31,
+      "earned": 16300.25,
+      "completionsByRarity": {
+        "COMMON": 12,
+        "UNCOMMON": 9,
+        "RARE": 6,
+        "ULTRA_RARE": 4
+      }
+    },
+    "7a3d4a6f-4fee-5d4c-a18c-d50a10717ca4": {
+      "name": "Garyy",
+      "completions": 42,
+      "earned": 12890.0,
+      "completionsByRarity": {
+        "COMMON": 20,
+        "UNCOMMON": 14,
+        "RARE": 7,
+        "ULTRA_RARE": 1
+      }
+    },
+    "8c9a804c-92a4-561b-a06e-56d5ba38ee5d": {
+      "name": "NurseJoy_CZ",
+      "completions": 34,
+      "earned": 10100.0,
+      "completionsByRarity": {
+        "COMMON": 18,
+        "UNCOMMON": 11,
+        "RARE": 3,
+        "ULTRA_RARE": 2
+      }
+    },
+    "ecba0cc5-ffbb-580c-848f-c43d57d3e7d6": {
+      "name": "Rocketeer",
+      "completions": 23,
+      "earned": 8400.0,
+      "completionsByRarity": {
+        "COMMON": 9,
+        "UNCOMMON": 9,
+        "RARE": 4,
+        "ULTRA_RARE": 1
+      }
+    },
+    "080a08d4-2dae-5892-8749-290a69512b1a": {
+      "name": "SlowpokeSam",
+      "completions": 28,
+      "earned": 3350.0,
+      "completionsByRarity": {
+        "COMMON": 25,
+        "UNCOMMON": 3
+      }
+    },
+    "2773b0cf-3562-50aa-9ce9-b5be34c4b7ea": {
+      "name": "ShinyHunter99",
+      "completions": 24,
+      "earned": 19999.99,
+      "completionsByRarity": {
+        "COMMON": 4,
+        "UNCOMMON": 6,
+        "RARE": 8,
+        "ULTRA_RARE": 6
+      }
+    },
+    "0e233cc8-f7c8-5bba-ac31-9c678ea5d436": {
+      "name": "CasualCatch",
+      "completions": 4,
+      "earned": 520.0,
+      "completionsByRarity": {
+        "COMMON": 3,
+        "UNCOMMON": 1
+      }
+    },
+    "712e8d04-cfed-572a-99ae-4541582600b9": {
+      "name": "TieBreakerA",
+      "completions": 15,
+      "earned": 4000.0,
+      "completionsByRarity": {
+        "COMMON": 10,
+        "UNCOMMON": 5
+      }
+    },
+    "60648ea8-8d4e-5258-be37-f02fdd398c62": {
+      "name": "TieBreakerB",
+      "completions": 15,
+      "earned": 4000.0,
+      "completionsByRarity": {
+        "COMMON": 10,
+        "UNCOMMON": 5
+      }
+    },
+    "858623bd-6ce9-5321-b84d-4128b943e529": {
+      "name": "vErYmIxEdCaSe",
+      "completions": 8,
+      "earned": 1500.0,
+      "completionsByRarity": {
+        "COMMON": 5,
+        "UNCOMMON": 2,
+        "RARE": 1
+      }
+    },
+    "bccc194b-5018-5873-9d7d-45cc8b5de3ef": {
+      "name": "BigSpender",
+      "completions": 472,
+      "earned": 1234567.89,
+      "completionsByRarity": {
+        "COMMON": 300,
+        "UNCOMMON": 120,
+        "RARE": 40,
+        "ULTRA_RARE": 12
+      }
+    },
+    "2f023883-216c-5ef9-8b60-f16ce1ea6bd8": {
+      "name": null,
+      "earned": 7500.0,
+      "completions": 0,
+      "completionsByRarity": {}
+    },
+    "3b1d2a6a-b71e-5a40-84bb-39f0b3314320": {
+      "name": "NoRarityData",
+      "completions": 6,
+      "earned": 900.0
+    },
+    "cd41a140-3188-511c-a31c-b2a89d077e0b": {
+      "name": "ZeroHunts",
+      "completions": 0,
+      "earned": 0.0,
+      "completionsByRarity": {}
+    }
+  }
+}
