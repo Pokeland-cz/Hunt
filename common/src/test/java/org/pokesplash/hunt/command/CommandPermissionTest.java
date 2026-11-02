@@ -36,6 +36,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CommandPermissionTest {
 
+	private static final String ADMIN_SAVE = "hunt admin save";
+	private static final String ADMIN_RESET = "hunt admin stats reset Steve";
+	private static final String ADMIN_RESET_CONFIRM = "hunt admin stats reset Steve confirm";
+	private static final String ADMIN_RESET_ALL = "hunt admin stats resetall";
+	private static final String ADMIN_RESET_ALL_CONFIRM = "hunt admin stats resetall confirm";
+
 	private final Set<String> granted = new HashSet<>();
 	private final List<String> sourceChecks = new ArrayList<>();
 	private CommandDispatcher<CommandSourceStack> dispatcher;
@@ -93,6 +99,52 @@ class CommandPermissionTest {
 	}
 
 	@ParameterizedTest
+	@ValueSource(strings = {ADMIN_SAVE, ADMIN_RESET, ADMIN_RESET_CONFIRM, ADMIN_RESET_ALL, ADMIN_RESET_ALL_CONFIRM,
+			"hunt admin", "hunt admin stats", "hunt admin stats reset", "hunts admin save"})
+	void adminDataCommandsNeedOp(String command) {
+		assertFalse(canUse(command, 0));
+		assertFalse(canUse(command, 1));
+		assertTrue(canUse(command, 2));
+		assertTrue(canUse(command, 4));
+	}
+
+	@Test
+	void adminSaveNodeAllowsOnlySave() {
+		granted.add("hunt.admin.save");
+		assertTrue(canUse(ADMIN_SAVE, 0));
+		assertTrue(canUse("hunt admin", 0));
+		assertFalse(canUse("hunt admin stats", 0));
+		assertFalse(canUse(ADMIN_RESET_CONFIRM, 0));
+		assertFalse(canUse(ADMIN_RESET_ALL_CONFIRM, 0));
+	}
+
+	@Test
+	void adminResetNodeDoesNotAllowResetAll() {
+		granted.add("hunt.admin.reset");
+		assertTrue(canUse(ADMIN_RESET, 0));
+		assertTrue(canUse(ADMIN_RESET_CONFIRM, 0));
+		assertFalse(canUse(ADMIN_RESET_ALL_CONFIRM, 0));
+		assertFalse(canUse(ADMIN_SAVE, 0));
+	}
+
+	@Test
+	void adminResetAllNodeDoesNotAllowReset() {
+		granted.add("hunt.admin.resetall");
+		assertTrue(canUse(ADMIN_RESET_ALL, 0));
+		assertTrue(canUse(ADMIN_RESET_ALL_CONFIRM, 0));
+		assertFalse(canUse(ADMIN_RESET_CONFIRM, 0));
+		assertFalse(canUse(ADMIN_SAVE, 0));
+	}
+
+	// HUNT-028: a UUID (with dashes) is accepted as the player argument.
+	@ParameterizedTest
+	@ValueSource(strings = {"hunt stats 069a79f4-44e9-4726-a5be-fca90e38aaf5",
+			"hunt admin stats reset 069a79f4-44e9-4726-a5be-fca90e38aaf5 confirm"})
+	void uuidIsAPlayerArgument(String command) {
+		assertTrue(canUse(command, 4));
+	}
+
+	@ParameterizedTest
 	@ValueSource(strings = {"hunt", "hunts", "hunt stats", "hunts stats", "hunt stats Steve", "hunt top",
 			"hunts top earned"})
 	void playerCommandsNeedNoOp(String command) {
@@ -137,6 +189,9 @@ class CommandPermissionTest {
 		assertEquals("hunt.top", Hunt.permissions.getPermission("HuntTop").getLiteral());
 		assertEquals("hunt.reload", Hunt.permissions.getPermission("HuntReload").getLiteral());
 		assertEquals("hunt.refresh", Hunt.permissions.getPermission("HuntRefresh").getLiteral());
+		assertEquals("hunt.admin.save", Hunt.permissions.getPermission("HuntAdminSave").getLiteral());
+		assertEquals("hunt.admin.reset", Hunt.permissions.getPermission("HuntAdminReset").getLiteral());
+		assertEquals("hunt.admin.resetall", Hunt.permissions.getPermission("HuntAdminResetAll").getLiteral());
 	}
 
 	@Test
@@ -146,5 +201,8 @@ class CommandPermissionTest {
 		assertEquals(0, Hunt.permissions.getPermission("HuntTop").getLevel().getNumericalValue());
 		assertEquals(2, Hunt.permissions.getPermission("HuntReload").getLevel().getNumericalValue());
 		assertEquals(2, Hunt.permissions.getPermission("HuntRefresh").getLevel().getNumericalValue());
+		assertEquals(2, Hunt.permissions.getPermission("HuntAdminSave").getLevel().getNumericalValue());
+		assertEquals(2, Hunt.permissions.getPermission("HuntAdminReset").getLevel().getNumericalValue());
+		assertEquals(2, Hunt.permissions.getPermission("HuntAdminResetAll").getLevel().getNumericalValue());
 	}
 }

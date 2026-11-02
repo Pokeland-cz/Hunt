@@ -27,6 +27,7 @@ public class Lang extends Versioned {
 	private String statsEarned;
 	private String statsRarities;
 	private String statsNotFound;
+	private String statsAmbiguous;
 	private String topHeaderCompletions;
 	private String topHeaderEarned;
 	private String topEntry;
@@ -51,6 +52,7 @@ public class Lang extends Versioned {
 		statsEarned = "§7Money earned: §a{earned}";
 		statsRarities = "§7Common: §f{common} §7| Uncommon: §f{uncommon} §7| Rare: §f{rare} §7| Ultra Rare: §f{ultra_rare}";
 		statsNotFound = "§5[Hunt] §cNo hunt stats found for {player}.";
+		statsAmbiguous = "§5[Hunt] §e{player} §7matches several players: {matches}§7. Use the UUID: /hunt stats <uuid>";
 		topHeaderCompletions = "§5[Hunt] §eTop hunters by hunts completed:";
 		topHeaderEarned = "§5[Hunt] §eTop hunters by money earned:";
 		topEntry = "§6#{rank} §e{player} §7- §a{completions} §7hunts, §a{earned} §7earned";
@@ -101,6 +103,9 @@ public class Lang extends Versioned {
 	}
 	public String getStatsNotFound() {
 		return statsNotFound;
+	}
+	public String getStatsAmbiguous() {
+		return statsAmbiguous;
 	}
 	public String getTopHeaderCompletions() {
 		return topHeaderCompletions;
@@ -154,6 +159,10 @@ public class Lang extends Versioned {
 		}
 		// Added in 1.3.4.
 		if (!root.has("payFailedMessage")) {
+			lang.upgraded = true;
+		}
+		// Added in 1.3.8.
+		if (!root.has("statsAmbiguous")) {
 			lang.upgraded = true;
 		}
 		return lang;

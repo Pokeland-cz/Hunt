@@ -48,12 +48,20 @@ public class HuntStorage {
 		}
 	}
 
-	public void saveNow() {
+	/**
+	 * Writes hunts.json and waits for it.
+	 * @return true if the file was written.
+	 */
+	public boolean saveNow() {
 		if (!canSave(true)) {
-			return;
+			return false;
 		}
 		dirty = false;
-		FileStore.writeSync(FILE, serialize());
+		boolean written = FileStore.writeSync(FILE, serialize());
+		if (!written) {
+			dirty = true;
+		}
+		return written;
 	}
 
 	/**

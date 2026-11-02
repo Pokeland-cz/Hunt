@@ -1,6 +1,7 @@
 package org.pokesplash.hunt.stats;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
@@ -17,6 +18,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -126,17 +128,89 @@ public class HuntStats {
 		dirty = true;
 	}
 
+	/** For tests: records a completion without a ServerPlayer. */
+	void put(UUID player, String name, Bucket bucket, double earned) {
+		players.computeIfAbsent(player, u -> new PlayerStats()).recordCompletion(name, bucket, earned);
+		dirty = true;
+	}
+
+	boolean isDirty() {
+		return dirty;
+	}
+
+	void clearDirty() {
+		dirty = false;
+	}
+
 	public PlayerStats get(UUID player) {
 		return players.get(player);
 	}
 
 	/**
-	 * Finds a player's stats by their last known name (case-insensitive).
+	 * Finds the player meant by a name or UUID (HUNT-028), see {@link StatsLookup}.
+	 * @param online the online players, by name.
 	 */
-	public Optional<Map.Entry<UUID, PlayerStats>> findByName(String name) {
-		return players.entrySet().stream()
-				.filter(entry -> name.equalsIgnoreCase(entry.getValue().getName()))
-				.findFirst();
+	public StatsLookup.Result lookup(String query, Map<String, UUID> online) {
+		return StatsLookup.find(query, players, online);
+	}
+
+	/**
+	 * @return the last known names of all players with stats, for tab completion.
+	 */
+	public List<String> knownNames() {
+		return players.values().stream().map(PlayerStats::getName).filter(Objects::nonNull).distinct().toList();
+	}
+
+	/**
+	 * Deletes a player's stats. Not saved here.
+	 * @return the deleted stats, or null if the player had none.
+	 */
+	public PlayerStats remove(UUID player) {
+		PlayerStats removed = players.remove(player);
+		if (removed != null) {
+			dirty = true;
+		}
+		return removed;
+	}
+
+	/**
+	 * Deletes the stats of all players. Not saved here.
+	 * @return how many players had stats.
+	 */
+	public int clear() {
+		int count = players.size();
+		players.clear();
+		dirty = true;
+		return count;
+	}
+
+	public int size() {
+		return players.size();
+	}
+
+	public int totalCompletions() {
+		return players.values().stream().mapToInt(PlayerStats::getCompletions).sum();
+	}
+
+	/**
+	 * @return false if stats.json couldn't be read at startup, so nothing can be saved this run.
+	 */
+	public boolean isWritable() {
+		return writable;
+	}
+
+	/**
+	 * @return one player's stats as JSON, for the log.
+	 */
+	public static String toJson(PlayerStats stats) {
+		return new GsonBuilder().disableHtmlEscaping().create().toJson(stats);
+	}
+
+	/**
+	 * @return the stats in the format of stats.json, e.g. for a copy before all stats are reset.
+	 */
+	public String snapshot() {
+		return serialize();
 	}
 
 	/**
@@ -174,12 +248,20 @@ public class HuntStats {
 		}
 	}
 
-	public void saveNow() {
+	/**
+	 * Writes stats.json and waits for it.
+	 * @return true if the file was written.
+	 */
+	public boolean saveNow() {
 		if (!canSave(true)) {
-			return;
+			return false;
 		}
 		dirty = false;
-		FileStore.writeSync(FILE, serialize());
+		boolean written = FileStore.writeSync(FILE, serialize());
+		if (!written) {
+			dirty = true;
+		}
+		return written;
 	}
 
 	private String serialize() {

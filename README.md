@@ -25,10 +25,13 @@ A hunt mod for [Cobblemon](https://cobblemon.com/). Allows players to gain money
 | Command | Permission node | Default | Description |
 | --- | --- | --- | --- |
 | `/hunt` | `hunt.base` | everyone | Opens the hunt menu. Without this permission the menu doesn't open; the subcommands below are not affected. |
-| `/hunt stats [player]` | `hunt.stats` | everyone | Shows hunts completed, money earned and completions per rarity. Works for offline players. |
+| `/hunt stats [player\|uuid]` | `hunt.stats` | everyone | Shows hunts completed, money earned and completions per rarity. Works for offline players and accepts a UUID (see *Finding a player*). |
 | `/hunt top [completions\|earned]` | `hunt.top` | everyone | Shows the top 10 hunters. |
 | `/hunt refresh` | `hunt.refresh` | OP 2 | Re-rolls all global hunts. |
 | `/hunt refresh <player>` | `hunt.refresh` | OP 2 | Re-rolls a player's individual hunts. |
+| `/hunt admin save` | `hunt.admin.save` | OP 2 | Writes `hunts.json` and `stats.json` now instead of waiting up to 30 seconds. While Hunt is paused only `stats.json` is written. |
+| `/hunt admin stats reset <player\|uuid> [confirm]` | `hunt.admin.reset` | OP 2 | Deletes one player's stats (see *Resetting stats*). |
+| `/hunt admin stats resetall [confirm]` | `hunt.admin.resetall` | OP 2 | Deletes the stats of all players, e.g. for a new leaderboard season (see *Resetting stats*). |
 | `/hunt reload` | `hunt.reload` | OP 2 | Reloads the configs. Current hunts are kept and trimmed or topped up to the hunt amount. A file that can't be loaded is left untouched and the previous version stays in use (see *Broken config files*). |
 
 `hunt.notify` (everyone) controls the individual-hunt messages.
@@ -36,6 +39,18 @@ A hunt mod for [Cobblemon](https://cobblemon.com/). Allows players to gain money
 Use the nodes as written above in LuckPerms, e.g. `lp group admin permission set hunt.reload true`. Without a permissions mod, or if a node isn't set, the OP level in the *Default* column applies. (Hunt 1.3.5 used `cobblemon.hunt.*` by mistake; since 1.3.6 the nodes are `hunt.*` again.)
 
 Permissions are checked for whoever runs the command. Players are checked by their permissions. The console (OP 4) and command blocks (OP 2) can run every command. Anything else, such as `/execute as <mob> run hunt refresh`, needs the OP level from the *Default* column, so `/execute` can't be used to get around a permission.
+
+### Finding a player
+
+`/hunt stats` and `/hunt admin stats reset` take a name or a UUID. A name is matched in this order: an online player with exactly that name, then the last known name in the stats with exactly that name, then any of them ignoring upper and lower case. If several players match (e.g. `Steve` and `steve` on an offline-mode server, or a name used by two accounts), they are listed with their UUIDs (lang key `statsAmbiguous`); use the UUID then.
+
+### Resetting stats
+
+A reset only happens when the same command is run again with `confirm` within 30 seconds, by the same player (or from the console). The first run shows what would be deleted.
+- `reset`: the player's stats are deleted (they also leave `/hunt top`) and `stats.json` is saved right away. The server log gets a WARN with who did it and the deleted stats as JSON.
+- `resetall`: the current stats are first written to `config/hunt/stats-reset-<yyyyMMdd-HHmmss>.json` (same format as `stats.json`). If that copy can't be written, nothing is reset. Then all stats are deleted and `stats.json` is saved.
+- To undo a reset, stop the server, put the record from the log (or the copy) back into `stats.json`, and start it again. Don't edit `stats.json` or `hunts.json` while the server runs: Hunt overwrites them with the data in memory.
+- If `stats.json` couldn't be read at startup, resets are refused, because they couldn't be saved.
 
 ## Placeholders
 

@@ -10,21 +10,23 @@ import net.minecraft.server.level.ServerPlayer;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.hunts.Bucket;
 import org.pokesplash.hunt.stats.PlayerStats;
+import org.pokesplash.hunt.stats.StatsLookup;
 import org.pokesplash.hunt.util.Subcommand;
 import org.pokesplash.hunt.util.Utils;
 
 import java.text.DecimalFormat;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
- * /hunt stats [player] - shows how many hunts a player completed and how much they earned.
+ * /hunt stats [player|uuid] - shows how many hunts a player completed and how much they earned.
  */
 public class StatsCommand extends Subcommand {
 
 	public StatsCommand() {
-		super("§9Usage:\\n§3- hunt stats [player]");
+		super("§9Usage:\\n§3- hunt stats [player|uuid]");
 	}
 
 	@Override
@@ -57,21 +59,38 @@ public class StatsCommand extends Subcommand {
 	}
 
 	private int runForPlayer(CommandContext<CommandSourceStack> context) {
-		String name = StringArgumentType.getString(context, "player");
+		String query = StringArgumentType.getString(context, "player");
 
-		ServerPlayer online = Hunt.server.getPlayerList().getPlayerByName(name);
-		if (online != null) {
-			show(context, online.getUUID(), online.getName().getString());
-			return 1;
-		}
-
-		Optional<Map.Entry<UUID, PlayerStats>> found = Hunt.stats.findByName(name);
-		if (found.isPresent()) {
-			show(context, found.get().getKey(), found.get().getValue().getName());
-		} else {
-			send(context, Hunt.language.getStatsNotFound().replace("{player}", name));
+		switch (Hunt.stats.lookup(query, online(context.getSource()))) {
+			case StatsLookup.Found found -> show(context, found.uuid(),
+					found.name() != null ? found.name() : Hunt.stats.displayName(found.uuid(), null));
+			case StatsLookup.Ambiguous ambiguous -> send(context, Hunt.language.getStatsAmbiguous()
+					.replace("{player}", query)
+					.replace("{matches}", describe(ambiguous)));
+			case StatsLookup.NotFound notFound ->
+					send(context, Hunt.language.getStatsNotFound().replace("{player}", query));
 		}
 		return 1;
+	}
+
+	/**
+	 * @return the online players by name.
+	 */
+	static Map<String, UUID> online(CommandSourceStack source) {
+		Map<String, UUID> players = new LinkedHashMap<>();
+		for (ServerPlayer player : source.getServer().getPlayerList().getPlayers()) {
+			players.put(player.getName().getString(), player.getUUID());
+		}
+		return players;
+	}
+
+	/**
+	 * @return "Steve (uuid), steve (uuid)", for a name that matches several players.
+	 */
+	static String describe(StatsLookup.Ambiguous ambiguous) {
+		return ambiguous.matches().stream()
+				.map(match -> (match.name() == null ? "?" : match.name()) + " (" + match.uuid() + ")")
+				.collect(Collectors.joining(", "));
 	}
 
 	private void show(CommandContext<CommandSourceStack> context, UUID uuid, String name) {

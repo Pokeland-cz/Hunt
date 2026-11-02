@@ -29,6 +29,9 @@ public class Permissions {
 		createPermission("HuntDebug", "hunt.debug", 2);
 		createPermission("HuntStats", "hunt.stats", 0);
 		createPermission("HuntTop", "hunt.top", 0);
+		createPermission("HuntAdminSave", "hunt.admin.save", 2);
+		createPermission("HuntAdminReset", "hunt.admin.reset", 2);
+		createPermission("HuntAdminResetAll", "hunt.admin.resetall", 2);
 	}
 
 	/**
@@ -74,6 +77,18 @@ public class Permissions {
 			throw new IllegalArgumentException("Unknown Hunt permission: " + name);
 		}
 		return source -> hasPermission(source, permission);
+	}
+
+	/**
+	 * A check for a command's requires(...) that passes if the source has any of the permissions.
+	 * @throws IllegalArgumentException if there's no such permission.
+	 */
+	public Predicate<CommandSourceStack> requiresAny(String... names) {
+		Predicate<CommandSourceStack> any = source -> false;
+		for (String name : names) {
+			any = any.or(requires(name));
+		}
+		return any;
 	}
 
 	private PermissionLevel parsePermission(int permLevel) {

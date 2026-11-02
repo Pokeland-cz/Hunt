@@ -46,6 +46,18 @@ class LangParseTest {
 		assertTrue(JsonParser.parseString(lang.toJson()).getAsJsonObject().has("payFailedMessage"));
 	}
 
+	@Test
+	void fileWithoutStatsAmbiguousIsUpgraded() throws ConfigLoadException {
+		Lang lang = Lang.parse(langJsonWith(root -> {
+			root.remove("statsAmbiguous");
+			root.addProperty("captureHuntBroadcast", CUSTOM_BROADCAST);
+		}));
+		assertTrue(lang.isUpgraded());
+		assertEquals(new Lang().getStatsAmbiguous(), lang.getStatsAmbiguous());
+		assertEquals(CUSTOM_BROADCAST, lang.getCaptureHuntBroadcast());
+		assertTrue(JsonParser.parseString(lang.toJson()).getAsJsonObject().has("statsAmbiguous"));
+	}
+
 	@ParameterizedTest
 	@ValueSource(strings = {"", "   ", "[]", "\"text\"", "{\"title\": \"Hunt\" \"reward\": \"x\"}", "{\"title\": "})
 	void unreadableFileIsRejected(String json) {

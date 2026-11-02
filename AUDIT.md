@@ -19,7 +19,8 @@ Značení: **[ověřeno]** = viděno v kódu Hunt nebo ve zdrojácích/bytecode 
 | 5 – oprávnění (HUNT-009, 017) | ✅ **Hotovo, otestováno a nasazeno (1.3.5)** | `reload`, `refresh`, `stats` a `top` kontrolují oprávnění u zdroje příkazu (`CommandSourceStack`), takže `execute as <mob>` už nic neobejde. `/hunts` je čistý alias, `hunt.base` řídí jen GUI. README uvádí skutečné uzly s prefixem `cobblemon.` (nový nález HUNT-033). 161 testů, mutační kontrola 6 z 6, test na serveru (13.4 a–f) prošel. **Na produkci nasazeno 2026-11-02.** Viz kapitola 13. |
 | HUNT-033 – uzly oprávnění | ✅ **Hotovo, otestováno a nasazeno (1.3.6)** | Uzly jsou zase `hunt.*` (bez prefixu `cobblemon.`), jak uvádělo původní README. Nová třída `HuntPermission` předává uzel Cobblemon validatoru beze změny. V LuckPerms provozovatele žádné uzly Hunt nastavené nejsou, takže se nic nerozbije. 161 testů, test na serveru (14.2 a–e) prošel. **Na produkci nasazeno 2026-11-02.** Viz kapitola 14. |
 | 6 – validace configu (HUNT-008, 030, 031, 032) | ✅ **Hotovo, otestováno a nasazeno (1.3.7)** | Nový `ConfigValidator`: neplatné hodnoty a chybějící sekce jsou chyba (start → pauza, reload → starý config), drobnosti jsou varování s bezpečnou hodnotou, v logu i žlutě v chatu při `/hunt reload`. Neznámé druhy a formy v `customPrices` a `blacklist` → varování. Config bez `version` si nechá ekonomiku i měnu. `{price}` vždy s tečkou. 226 testů, mutační kontrola 10 z 10, build zelený, `-Xlint:all` bez nových varování (2026-11-02). Test na serveru prošel, **na produkci nasazeno 2026-11-02**. Se stejným releasem: kompilace proti Cobblemonu 1.8.4, Fabric Loaderu 0.20.1 a Fabric API 0.116.17 a opravy buildu (15.6). Viz kapitola 15. |
-| 7–9 | ⬜ Neprovedeno | |
+| 7 – admin příkazy (HUNT-013, 028) | ✅ **Hotovo, otestováno a nasazeno (1.3.8)** | `/hunt admin save`, `/hunt admin stats reset <jméno\|uuid> [confirm]`, `/hunt admin stats resetall [confirm]` (potvrzení do 30 s stejným zdrojem, snapshot před resetem všech, WARN se smazaným záznamem). `/hunt stats` bere UUID a u nejednoznačného jména vypíše shody s UUID. 271 testů, mutační kontrola 11 z 11, build zelený, `-Xlint:all` bez nových varování (2026-11-02). Test na serveru (16.5/2 a–g) prošel, **na produkci nasazeno 2026-11-02**. Viz kapitola 16. |
+| 8–9 | ⬜ Neprovedeno | |
 
 ---
 
@@ -210,9 +211,10 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 - **Scénář:** Přechodná chyba práv nebo disku v kontejneru Pterodactyl při startu. Stats začnou prázdné, při první completion se nastaví dirty a za 30 s se `stats.json` **přepíše** téměř prázdným souborem. Žádná záloha nevznikne (`backupBroken` se volá jen při chybě parsování a navíc přepisuje předchozí `.broken`).
 - **Oprava:** IOException při čtení = fatální pro daný store (neukládat a hlasitě logovat). Rotující zálohy (`stats.json.bak.N`) před přepisem. **S**.
 
-#### HUNT-013 · Chybí admin nástroje pro správu dat hráče · C/E · [ověřeno]
+#### ✅ HUNT-013 · [opraveno v 1.3.8, krok 7] · Chybí admin nástroje pro správu dat hráče · C/E · [ověřeno]
 - Nejde resetovat stats hráče, přelosovat hunty **offline** hráče (`RefreshCommand.java:212-219` hledá jen online) ani zobrazit cizí hunty. Ruční editace `stats.json`/`hunts.json` za běhu se do 30 s přepíše daty z paměti.
 - **Oprava:** `/hunt admin stats reset <player|uuid>`, `/hunt admin refresh <player|uuid>`, `/hunt admin view <player>`, `/hunt admin save`. **S–M**.
+- **Stav po kroku 7 (1.3.8):** `reset`, `resetall` a `save` jsou hotové (kapitola 16). `refresh` a `view` pro offline hráče se týkají jen individuálního režimu a jsou odložené s HUNT-005/006.
 
 #### HUNT-014 · Výplaty se nelogují · F · [ověřeno]
 - **Kde:** `event/CaptureEvent.java:52-68`. Úspěšná výplata ani provedené příkazy nezanechají v logu žádnou stopu, chyby se logují přes `printStackTrace`.
@@ -250,7 +252,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 | HUNT-025 | B/D | `broadcast/Broadcaster.java:20`, `hunts/HuntManager.java:66-71` | `playerBuffers` roste do reloadu (malý leak, 1 záznam na hráče). `checkOnlinePlayers` každou sekundu kopíruje množinu **všech** známých UUID a hledá je mezi online hráči. Iterovat stačí online hráče. [ověřeno] | Iterovat `getPlayerList().getPlayers()`, čistit při disconnectu. | S |
 | HUNT-026 | A | `hunts/CurrentHunts.java:66, 192-197` | `taken` se počítá až po odebrání splněného huntu, takže stejný druh může být hned znovu vylosován. Hráč na spawnu daného druhu dostane šanci 1/|bucket| na okamžité další splnění. [ověřeno, malý dopad] | Vyloučit právě splněný cíl. | S |
 | HUNT-027 | A/F | `command/basecommand/HuntCommand.java:127,161-163` | GUI je statické (čas se neaktualizuje). Hráči se zobrazuje `e.getMessage()` (interní detaily). GooeyLibs `GooeyContainer` přepisuje `clicked()` i `quickMoveStack()` a volá `patchDesyncs` [ověřeno v bytecode], takže vytažení itemů je nepravděpodobné a GUI nemá akce. **Doporučuji ruční test** (shift-click, čísla 1–9, drag, double-click, Q, zavření při lagu). | Generická hláška hráči. | S |
-| HUNT-028 | E | `stats/HuntStats.java:99-103` | `/hunt stats <jméno>` vrací první shodu bez ohledu na velikost písmen. Offline mode umožní `Steve` i `steve` jako dva účty se dvěma UUID. [ověřeno] | Preferovat přesnou shodu, umožnit zadat UUID. | S |
+| ✅ HUNT-028 (opraveno v 1.3.8, krok 7) | E | `stats/HuntStats.java:99-103` | `/hunt stats <jméno>` vrací první shodu bez ohledu na velikost písmen. Offline mode umožní `Steve` i `steve` jako dva účty se dvěma UUID. [ověřeno] | Preferovat přesnou shodu, umožnit zadat UUID. | S |
 | HUNT-029 | B | `Hunt.java:86-91` | Vanilla `/reload` (datapacky) neobnoví `SpawnRates`. Hunty drží staré `Species` objekty (matching jede přes jména, takže funkčně OK). [ověřeno] | Hook na `END_DATA_PACK_RELOAD`. | S |
 | ✅ HUNT-030 (opraveno v 1.3.7) | A | `util/Placeholders.java:43` (dříve `Utils.formatPlaceholders`) | `{price}` formátuje `DecimalFormat("0.##")` podle locale JVM. Na serveru s `cs_CZ` (nebo jiným locale s desetinnou čárkou) se cena `1.5` vypíše jako `1,5` a reward příkaz typu `eco give {uuid} {price}` ji nemusí přijmout. Celé ceny se to netýká (bez oddělovače tisíců). [ověřeno testem `decimalSeparatorFollowsServerLocale`, nalezeno v kroku 3] | `DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.ROOT))`, aspoň pro příkazy. Krok 6 nebo 9. | S |
 | ✅ HUNT-033 (opraveno v 1.3.6) | E/F | `util/Permissions.java`, README | `CobblemonPermission` přidává k uzlu prefix `cobblemon.` (`getLiteral()` = `"cobblemon." + node`, ověřeno v bytecode 1.8.0 i 1.8.4 a testem). LuckPerms tedy vidí `cobblemon.hunt.reload`, ne `hunt.reload`, jak tvrdilo README. Uzly nastavené podle README (`hunt.*`) nic neudělají: povolení se neuplatní (platí jen OP level) a zákaz taky ne. [ověřeno testem `permissionNodesHaveTheCobblemonPrefix`, nalezeno v kroku 5] | **Rozhodnutí provozovatele (2026-11-02):** přejít na `hunt.*` (v LuckPerms nejsou žádné uzly Hunt nastavené). Opraveno v 1.3.6 přes vlastní `HuntPermission` bez prefixu, viz kapitola 14. | S |
@@ -398,7 +400,7 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 | 4 | ✅ **HOTOVO a nasazeno (1.3.4)** · **`CompletionService`:** vyčlenit výplatní tok z `CaptureEvent` (claim → log PENDING → ekonomika → příkazy jen při úspěchu → log DONE → stats), po completion vynutit uložení `hunts.json`; testy (selhání ekonomiky, dvojí completion) | 007 | M |
 | 5 | ✅ **HOTOVO a nasazeno (1.3.5)** · **Oprávnění:** `requires` přes `CommandSourceStack` místo `isPlayer() ? check : true`; sjednotit `/hunt` a `/hunts` a opravit README | 009, 017 | S |
 | 6 | ✅ **HOTOVO a nasazeno (1.3.7)** · **Validace configu** s jasnými hláškami (`huntDuration > 0`, `huntAmount 1–28`, váhy, `economy`, ceny, existence druhů v `customPrices` a `blacklist`) | 008 | M |
-| 7 | **Admin příkazy:** reset stats, `save`, zobrazení stats podle UUID | 013, 028 | S |
+| 7 | ✅ **HOTOVO a nasazeno (1.3.8)** · **Admin příkazy:** reset stats, `save`, zobrazení stats podle UUID | 013, 028 | S |
 | 8 | **Úklid:** `old/` (po ověření, že nikdo nemá config < 1.2.3), `DebugCommand`, `Settings.java`, Utils IO, `fabric.mod.json` (`cobblemon <1.9`, `fabric-api`), Gradle deprecations, `gradlew +x`; rozhodnout o `forge/` | 023, 024 | S |
 | 9 | **Kosmetika a drobnosti:** agregované broadcasty, `{species_id}`, labely mythical/UB/paradox, datapack reload hook, GUI hláška, vyloučení právě splněného cíle | 018, 020, 021, 022, 026, 027, 029 | S |
 | — | **Odloženo, dokud se nezapne `individualHunts`:** HUNT-005 (policy výplat), HUNT-006 (lehký model, prune, serializace mimo tick), HUNT-019, HUNT-025 | 005, 006, 019, 025 | M–L |
@@ -414,7 +416,7 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 2. ~~**Jen pokud ověření selže**~~ *(nebylo potřeba, ověření prošlo)* (hráč se jménem mimo `[A-Za-z0-9_]` se dostane na Cobblemon server): okamžitě odstranit `{player}` z `captureHuntBroadcast` v `lang.json` a z reward příkazů, pak `/hunt reload`. Odměny přes příkazy tím do hotfixu přestanou fungovat. Placeholder `{uuid}` (vanilla `give` UUID přijme) přidá až krok 0.
 3. **Kroky 0 a 1 jako jeden hotfix release.** ✅ Nasazeno 2026-11-02 (v 1.3.3 spolu s krokem 2). Po nasazení 1–2 dny sledovat `payouts.log`. Měna je převoditelná, takže log je jediný způsob, jak zpětně najít případné zneužití.
 4. Krok 2 (config) před další úpravou `config.json` na produkci. **Hotovo, otestováno a nasazeno v 1.3.3 (2026-11-02)** (kapitola 10).
-5. Kroky 3–4 (testy a `CompletionService`). ✅ **Hotovo, otestováno a nasazeno v 1.3.4 (2026-11-02)** (kapitoly 11 a 12). Krok 5 (oprávnění) ✅ **hotovo, otestováno a nasazeno v 1.3.5 (2026-11-02)** (kapitola 13). Krok 6 (validace configu) ✅ **hotovo, otestováno a nasazeno v 1.3.7 (2026-11-02)** (kapitola 15). Dál krok 7.
+5. Kroky 3–4 (testy a `CompletionService`). ✅ **Hotovo, otestováno a nasazeno v 1.3.4 (2026-11-02)** (kapitoly 11 a 12). Krok 5 (oprávnění) ✅ **hotovo, otestováno a nasazeno v 1.3.5 (2026-11-02)** (kapitola 13). Krok 6 (validace configu) ✅ **hotovo, otestováno a nasazeno v 1.3.7 (2026-11-02)** (kapitola 15). Krok 7 (admin příkazy) ✅ **hotovo, otestováno a nasazeno v 1.3.8 (2026-11-02)** (kapitola 16). Dál krok 8.
 6. Kroky 7–9 průběžně.
 7. Ruční test GUI (HUNT-027). Test spawn zdrojů (HUNT-010) už není potřeba: podle provozovatele spawnuje divoké Pokémony jen Cobblemon (revize 3).
 
@@ -823,3 +825,73 @@ Změněno 10 souborů a 2 nové.
 - **Verze závislostí** (`gradle.properties`, změna provozovatele): Fabric Loader 0.16.0 → 0.20.1, Fabric API 0.107.0 → 0.116.17+1.21.1, Cobblemon (compile) 1.8.0 → 1.8.4+1.21.1. `fabric.mod.json` dál uvádí `cobblemon >=1.8.0`. Zvednutí spodní hranice patří do kroku 8.
 - **Neúplný sources jar:** `remapSourcesJar` ve `fabric` i `forge` hlásil `Could not remap … fully! NullPointerException` (i se starými verzemi, chyba byla starší). Sources jar platformy obsahuje i zdrojáky z `common`, ale `common` se připojuje s `transitive = false`, takže remapper (Mercury) neviděl Cobblemon. U `SpawnRates.java` spadl a zbytek souborů (`stats/*`, `util/*`, `old/*`) ve výsledném `*-sources.jar` chyběl. Samotného jaru s módem se to netýkalo. **Oprava:** `modCompileOnly "com.cobblemon:fabric:…"` / `"com.cobblemon:neoforge:…"` ve `fabric/build.gradle` a `forge/build.gradle`. Remapovaný sources jar teď obsahuje stejné soubory jako vstupní, velikost jarů s módem se nezměnila a Cobblemon se do nich nebalí.
 - **Deprecations Gradlu ve vlastních skriptech:** `archivesBaseName` → `base { archivesName = … }`, `url "…"` → `url = "…"`, `transitive false` → `transitive = false`, `exceptionFormat "full"` → `exceptionFormat = "full"`. Zbylá varování (`Convention`, `JavaPluginConvention`, `ConfigureUtil`, `Task.project` při spuštění, `FileTreeElement.getMode()`) pochází z pluginu `com.github.johnrengelman.shadow` 7.1.2. Přechod na `com.gradleup.shadow` 8.x patří do kroku 8 (HUNT-023/024).
+
+---
+
+## 16. Plán kroku 7: admin příkazy (1.3.8) · ✅ HOTOVO, otestováno a nasazeno
+
+**Stav:** Změny A–L z 16.3 jsou implementované. Build je zelený (271 testů, `-Xlint:all` bez nových varování) a mutační kontrola zachytila 11 z 11 mutací (2026-11-02). **Test na serveru (16.5/2 a–g) proběhl a prošel a 1.3.8 je nasazená na produkci (2026-11-02, potvrzeno provozovatelem).**
+
+**Cíl:** Vyřešit HUNT-013 (reset statistik, vynucené uložení) a HUNT-028 (dohledání podle UUID, nejednoznačná jména).
+**Rozhodnutí provozovatele (2026-11-02):** reset jednoho hráče **i všech** (sezóny žebříčku), reset vždy **s potvrzením** do 30 s.
+**Mimo rozsah:** `/hunt admin refresh` a `view` pro offline hráče (individuální režim), načtení ručně upraveného souboru za běhu, úklid (krok 8). **Datové formáty se nemění**, návrat na 1.3.7 = výměna jaru (`lang.json` s klíčem `statsAmbiguous` načte i 1.3.7, neznámý klíč ignoruje).
+
+### 16.1 Příkazy
+| Příkaz | Uzel | Default |
+|---|---|---|
+| `/hunt stats <jméno\|uuid>` | `hunt.stats` (beze změny) | všichni |
+| `/hunt admin save` | `hunt.admin.save` | OP 2 |
+| `/hunt admin stats reset <jméno\|uuid> [confirm]` | `hunt.admin.reset` | OP 2 |
+| `/hunt admin stats resetall [confirm]` | `hunt.admin.resetall` | OP 2 |
+
+Literál `admin` (a `stats` pod ním) vyžaduje kterýkoli z podřízených uzlů, takže se hráčům bez oprávnění nenabízí v tabu. `resetall` je samostatný literál, aby nekolidoval s hráčem jménem `all`.
+
+### 16.2 Chování
+- **Dohledání (`StatsLookup`):** UUID → přesná shoda s online hráčem → přesná shoda s posledním jménem ve stats → shoda bez ohledu na velikost písmen (online i stats, deduplikace podle UUID). Víc shod v kroku → seznam `jméno (uuid)`, hráčům přes lang klíč `statsAmbiguous`. Záznamy bez jména (import z `logs.json`) jdou najít jen přes UUID. Dřív `findByName` vracel první shodu bez ohledu na velikost písmen.
+- **Potvrzení (`PendingConfirmations`):** náhled uloží akci (`reset:<uuid>` nebo `resetall`) pro zdroj (UUID hráče, jinak `getTextName()`) na 30 s. `confirm` projde jen u stejného zdroje a stejné akce, akce se spotřebuje. Špatný `confirm` (jiný cíl) čekající akci nespotřebuje. Náhled u resetu radí potvrdit přes UUID.
+- **Reset hráče:** záznam se smaže, WARN do `latest.log` (kdo, koho, UUID, smazaný záznam jako JSON na jednom řádku), `stats.json` se hned uloží synchronně. Platí i při pauze (tick při pauze neukládá).
+- **Reset všech:** obsah paměti se nejdřív zapíše do `config/hunt/stats-reset-<yyyyMMdd-HHmmss>.json`. Když zápis selže, nic se nesmaže. Pak `clear`, WARN s cestou, uložení. `logs.json` se znovu neimportuje.
+- **Zámek:** `stats.json` nešel při startu přečíst → reset se odmítne (nešel by uložit).
+- **`/hunt admin save`:** `HuntStorage.saveNow()` a `HuntStats.saveNow()` nově vrací `boolean`. Neúspěšný zápis nechá data označená jako změněná, takže je zkusí uložit další 30s interval. Při pauze se `hunts.json` neukládá (hunty nejsou načtené a soubor by se přepsal prázdným).
+
+### 16.3 Změny po souborech
+| # | Soubor | Změna |
+|---|---|---|
+| A | nový `stats/StatsLookup.java` | Dohledání podle 16.2 (bez MC). |
+| B | `stats/HuntStats.java` | `lookup`, `knownNames`, `remove`, `clear`, `size`, `totalCompletions`, `isWritable`, `toJson(PlayerStats)`, `snapshot`, `saveNow` → `boolean`; `findByName` pryč. Package-private háčky pro testy. |
+| C | `hunts/HuntStorage.java` | `saveNow` → `boolean`. |
+| D | nový `command/PendingConfirmations.java` | Čekající potvrzení s injektovanými hodinami. |
+| E | nový `command/subcommand/AdminCommand.java` | Strom `admin …`, hlášky anglicky jako u `reload`/`refresh`, tab = online jména + jména ze stats. |
+| F | `command/subcommand/StatsCommand.java` | `lookup`, `statsAmbiguous`, sdílené `online()` a `describe()`. |
+| G | `command/basecommand/HuntCommand.java` | Registrace `AdminCommand`. |
+| H | `util/Permissions.java` | `hunt.admin.save`, `hunt.admin.reset`, `hunt.admin.resetall` (OP 2), `requiresAny`. |
+| I | `config/Lang.java` | `statsAmbiguous` + upgrade souboru. |
+| J | `README.md` | Tabulka příkazů, *Finding a player*, *Resetting stats*. |
+| K | `gradle.properties` | `mod_version=1.3.8` |
+| L | `AUDIT.md` | Tato kapitola, stav, HUNT-013 a HUNT-028. |
+
+### 16.4 Testy (JUnit 5)
+- **`stats/StatsLookupTest` (15):** UUID (velká písmena, mezery, bez záznamu, jméno online hráče), text podobný UUID je jméno, přesná shoda ve stats nad jinou velikostí písmen, `STEVE` → dvě shody, stejné přesné jméno na dvou UUID, přesná online shoda nad stats, přesná stats shoda nad online s jinou velikostí, unikátní shoda bez ohledu na velikost, deduplikace online+stats, online a stats s různými UUID, záznam bez jména, nenalezeno a prázdný dotaz.
+- **`stats/HuntStatsTest` (7):** `remove` (záznam, dirty, neznámý hráč nic nemění), zmizení z `top` a dohledání, `clear`, `snapshot` ve formátu `stats.json`, součty pro náhled, JSON do logu na jednom řádku.
+- **`command/PendingConfirmationsTest` (8):** bez náhledu, v limitu jednou, po limitu, jiný zdroj, jiná akce (nespotřebuje), nový náhled přepíše a restartuje limit, výchozí 30 s.
+- **`command/CommandPermissionTest` (+14, celkem 37):** admin příkazy na OP 0/1 ne, 2/4 ano; každý uzel povolí jen svůj příkaz; UUID jako argument; literály a úrovně nových uzlů.
+- **`config/LangParseTest` (+1):** chybějící `statsAmbiguous` → upgrade, vlastní texty zůstanou.
+- **Mutační kontrola (11 z 11):** bez přesné online shody, nejednoznačnost → první shoda, bez UUID, bez kroku přesné stats shody, bez `trim`, hranice expirace, bez kontroly akce, špatný confirm spotřebuje akci, `remove` bez dirty, `requiresAny` jen poslední uzel, bez upgradu langu.
+
+### 16.5 Ověření
+1. ✅ `bash ./gradlew build --rerun-tasks`: zelený, 271 testů. `-Xlint:all`: jen známé `[this-escape]` v `HuntForge`.
+2. ✅ **Testovací server** (prošlo 2026-11-02) (před každým scénářem zálohovat `config/hunt/`):
+   - a) `/hunt stats <uuid>` a `/hunt stats <jméno>` offline hráče; účty `Steve` a `steve` (offline mód) → přesná shoda, `STEVE` → seznam s UUID.
+   - b) `/hunt admin stats reset Steve` → náhled; `confirm` po 31 s → odmítnuto; náhled znovu a `confirm` do 30 s → smazáno, WARN s JSON, `stats.json` hned bez hráče, hráč zmizí z `/hunt top`.
+   - c) `confirm` od jiného admina nebo z konzole → odmítnuto.
+   - d) `resetall` + `confirm` → `stats-reset-*.json` odpovídá stavu před resetem, `/hunt top` prázdný i po restartu.
+   - e) `/hunt admin save` → oba soubory zapsané (mtime). Při pauze (rozbitý config) → `hunts.json` beze změny (`sha256sum`), hláška.
+   - f) Hráč bez OP: `admin` se nenabízí v tabu, příkazy odmítnuty. LuckPerms `hunt.admin.save` → jen `save`.
+   - g) Regrese: chycení a výplata (`PAID`), `/hunt stats` bez argumentu, `/hunt top`, `/hunt reload` (`lang.json` dostane `statsAmbiguous`, `.bak.1` = originál).
+
+### 16.6 Rizika
+- Reset nejde vrátit ze hry. Obnova jde jen ručně (WARN JSON nebo snapshot) při vypnutém serveru, popsáno v README.
+- `lang.json` se při prvním startu 1.3.8 jednou přepíše kvůli novému klíči (originál v `.bak.1`).
+- `/hunt stats <jméno>` může místo dřívější „první shody“ vypsat seznam shod. U jednoznačných jmen se nic nemění.
+- `admin save` a uložení po resetu zapisují synchronně na hlavním vlákně (malý soubor, stejně jako config při reloadu).
+- Snapshoty `stats-reset-*.json` se samy nemažou.
