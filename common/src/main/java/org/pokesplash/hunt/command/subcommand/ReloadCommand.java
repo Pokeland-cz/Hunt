@@ -23,14 +23,7 @@ public class ReloadCommand extends Subcommand {
 	@Override
 	public LiteralCommandNode<CommandSourceStack> build() {
 		return Commands.literal("reload")
-				.requires(ctx -> {
-					if (ctx.isPlayer()) {
-						return Hunt.permissions.hasPermission(ctx.getPlayer(),
-								Hunt.permissions.getPermission("HuntReload"));
-					} else {
-						return true;
-					}
-				})
+				.requires(Hunt.permissions.requires("HuntReload"))
 				.executes(this::run)
 				.build();
 	}

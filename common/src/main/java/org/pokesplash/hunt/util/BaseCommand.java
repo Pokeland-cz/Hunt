@@ -6,7 +6,6 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import org.pokesplash.hunt.Hunt;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,17 +62,9 @@ public abstract class BaseCommand {
 
 		dispatcher.getRoot().addChild(root);
 
-		// Add the aliases to the base command.
+		// Aliases behave exactly like the base command: run() and each subcommand check their own permission.
 		for (String alias : aliases) {
 			dispatcher.register(Commands.literal(alias)
-					.requires(ctx -> {
-						if (ctx.isPlayer()) {
-							return Hunt.permissions.hasPermission(ctx.getPlayer(),
-									permission);
-						} else {
-							return true;
-						}
-					})
 					.redirect(root)
 					.executes(this::run));
 		}
@@ -82,6 +73,13 @@ public abstract class BaseCommand {
 		for (Subcommand subcommand : subcommands) {
 			root.addChild(subcommand.build());
 		}
+	}
+
+	/**
+	 * @return the permission needed to run the base command itself (not its subcommands).
+	 */
+	public CobblemonPermission getPermission() {
+		return permission;
 	}
 
 	/**

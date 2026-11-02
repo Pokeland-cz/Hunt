@@ -30,8 +30,7 @@ public class StatsCommand extends Subcommand {
 	@Override
 	public LiteralCommandNode<CommandSourceStack> build() {
 		return Commands.literal("stats")
-				.requires(ctx -> !ctx.isPlayer() ||
-						Hunt.permissions.hasPermission(ctx.getPlayer(), Hunt.permissions.getPermission("HuntStats")))
+				.requires(Hunt.permissions.requires("HuntStats"))
 				.executes(this::run)
 				.then(Commands.argument("player", StringArgumentType.word())
 						.suggests((ctx, builder) -> {

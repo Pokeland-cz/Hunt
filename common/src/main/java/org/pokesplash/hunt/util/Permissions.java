@@ -3,9 +3,11 @@ package org.pokesplash.hunt.util;
 import com.cobblemon.mod.common.Cobblemon;
 import com.cobblemon.mod.common.api.permission.CobblemonPermission;
 import com.cobblemon.mod.common.api.permission.PermissionLevel;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.HashMap;
+import java.util.function.Predicate;
 
 /**
  * Class that deals with permission handling.
@@ -50,6 +52,28 @@ public class Permissions {
 
 	public boolean hasPermission(ServerPlayer player, CobblemonPermission permission) {
 		return Cobblemon.INSTANCE.getPermissionValidator().hasPermission(player, permission);
+	}
+
+	/**
+	 * Checks a permission for whoever runs a command. A player is checked by their permissions
+	 * (LuckPerms, or their OP level). Anything else (console, command block, "execute as" a non-player)
+	 * needs the permission's OP level, so "execute as" a mob doesn't get around the permission.
+	 */
+	public boolean hasPermission(CommandSourceStack source, CobblemonPermission permission) {
+		return Cobblemon.INSTANCE.getPermissionValidator().hasPermission(source, permission);
+	}
+
+	/**
+	 * A check for a command's requires(...), on whoever runs the command.
+	 * @param name the reference of the permission.
+	 * @throws IllegalArgumentException if there's no such permission, so a typo fails at registration.
+	 */
+	public Predicate<CommandSourceStack> requires(String name) {
+		CobblemonPermission permission = permissions.get(name);
+		if (permission == null) {
+			throw new IllegalArgumentException("Unknown Hunt permission: " + name);
+		}
+		return source -> hasPermission(source, permission);
 	}
 
 	private PermissionLevel parsePermission(int permLevel) {

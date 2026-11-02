@@ -1,0 +1,150 @@
+package org.pokesplash.hunt.command;
+
+import com.cobblemon.mod.common.Cobblemon;
+import com.cobblemon.mod.common.api.permission.Permission;
+import com.cobblemon.mod.common.api.permission.PermissionValidator;
+import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.ParseResults;
+import net.minecraft.commands.CommandSource;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.Vec2;
+import net.minecraft.world.phys.Vec3;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.pokesplash.hunt.Hunt;
+import org.pokesplash.hunt.command.basecommand.HuntCommand;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * HUNT-009 and HUNT-017: who can use which /hunt subcommand. The command tree is registered into its own
+ * dispatcher and only parsed, never run. The fake validator works like fabric-permissions-api without
+ * LuckPerms data for the source: a granted node passes, otherwise the source's OP level decides.
+ * Nodes are the literal LuckPerms sees, with Cobblemon's "cobblemon." prefix.
+ */
+class CommandPermissionTest {
+
+	private final Set<String> granted = new HashSet<>();
+	private final List<String> sourceChecks = new ArrayList<>();
+	private CommandDispatcher<CommandSourceStack> dispatcher;
+
+	@BeforeEach
+	void setUp() {
+		Cobblemon.INSTANCE.setPermissionValidator(new PermissionValidator() {
+			@Override
+			public void initialize() {
+			}
+
+			@Override
+			public boolean hasPermission(ServerPlayer player, Permission permission) {
+				throw new AssertionError("Permissions must be checked on the command source, not the player");
+			}
+
+			@Override
+			public boolean hasPermission(CommandSourceStack source, Permission permission) {
+				sourceChecks.add(permission.getLiteral());
+				return granted.contains(permission.getLiteral())
+						|| source.hasPermission(permission.getLevel().getNumericalValue());
+			}
+		});
+		dispatcher = new CommandDispatcher<>();
+		new HuntCommand().register(dispatcher);
+	}
+
+	/**
+	 * A source without an entity, like the console (4), a command block (2) or "execute as" a mob run by a
+	 * player without OP (0).
+	 */
+	private static CommandSourceStack source(int level) {
+		return new CommandSourceStack(CommandSource.NULL, Vec3.ZERO, Vec2.ZERO, null, level, "test",
+				Component.literal("test"), null, null);
+	}
+
+	private boolean canUse(String command, int level) {
+		ParseResults<CommandSourceStack> result = dispatcher.parse(command, source(level));
+		return !result.getReader().canRead() && result.getExceptions().isEmpty();
+	}
+
+	// "execute as @e[type=cow] run hunt refresh" from a player without OP.
+	@ParameterizedTest
+	@ValueSource(strings = {"hunt refresh", "hunt reload", "hunts refresh", "hunts reload", "hunt refresh Steve"})
+	void adminCommandsNeedOpWithoutAPlayer(String command) {
+		assertFalse(canUse(command, 0));
+		assertFalse(canUse(command, 1));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"hunt refresh", "hunt reload", "hunts refresh", "hunts reload", "hunt refresh Steve"})
+	void consoleAndCommandBlocksCanRunAdminCommands(String command) {
+		assertTrue(canUse(command, 2));
+		assertTrue(canUse(command, 4));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"hunt", "hunts", "hunt stats", "hunts stats", "hunt stats Steve", "hunt top",
+			"hunts top earned"})
+	void playerCommandsNeedNoOp(String command) {
+		assertTrue(canUse(command, 0));
+	}
+
+	@Test
+	void grantedNodeAllowsWithoutOp() {
+		granted.add("cobblemon.hunt.refresh");
+		assertTrue(canUse("hunt refresh", 0));
+		assertTrue(canUse("hunts refresh", 0));
+		assertFalse(canUse("hunt reload", 0));
+	}
+
+	// The alias used to hide everything behind hunt.base; now /hunt and /hunts behave the same.
+	@Test
+	void aliasDoesNotCheckHuntBase() {
+		canUse("hunts stats", 0);
+		assertFalse(sourceChecks.contains("cobblemon.hunt.base"));
+		assertTrue(sourceChecks.contains("cobblemon.hunt.stats"));
+	}
+
+	@Test
+	void eachSubcommandChecksItsOwnNode() {
+		canUse("hunt reload", 0);
+		canUse("hunt top", 0);
+		assertTrue(sourceChecks.contains("cobblemon.hunt.reload"));
+		assertTrue(sourceChecks.contains("cobblemon.hunt.top"));
+	}
+
+	@Test
+	void unknownPermissionFailsAtRegistration() {
+		assertThrows(IllegalArgumentException.class, () -> Hunt.permissions.requires("HuntTypo"));
+	}
+
+	// HUNT-033: CobblemonPermission prefixes the node with "cobblemon.", so these are the nodes LuckPerms sees.
+	@Test
+	void permissionNodesHaveTheCobblemonPrefix() {
+		assertEquals("cobblemon.hunt.base", Hunt.permissions.getPermission("HuntBase").getLiteral());
+		assertEquals("cobblemon.hunt.notify", Hunt.permissions.getPermission("HuntNotify").getLiteral());
+		assertEquals("cobblemon.hunt.stats", Hunt.permissions.getPermission("HuntStats").getLiteral());
+		assertEquals("cobblemon.hunt.top", Hunt.permissions.getPermission("HuntTop").getLiteral());
+		assertEquals("cobblemon.hunt.reload", Hunt.permissions.getPermission("HuntReload").getLiteral());
+		assertEquals("cobblemon.hunt.refresh", Hunt.permissions.getPermission("HuntRefresh").getLiteral());
+	}
+
+	@Test
+	void defaultLevels() {
+		assertEquals(0, Hunt.permissions.getPermission("HuntBase").getLevel().getNumericalValue());
+		assertEquals(0, Hunt.permissions.getPermission("HuntStats").getLevel().getNumericalValue());
+		assertEquals(0, Hunt.permissions.getPermission("HuntTop").getLevel().getNumericalValue());
+		assertEquals(2, Hunt.permissions.getPermission("HuntReload").getLevel().getNumericalValue());
+		assertEquals(2, Hunt.permissions.getPermission("HuntRefresh").getLevel().getNumericalValue());
+	}
+}

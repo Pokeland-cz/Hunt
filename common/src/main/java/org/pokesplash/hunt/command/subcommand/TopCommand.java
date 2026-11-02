@@ -26,8 +26,7 @@ public class TopCommand extends Subcommand {
 	@Override
 	public LiteralCommandNode<CommandSourceStack> build() {
 		return Commands.literal("top")
-				.requires(ctx -> !ctx.isPlayer() ||
-						Hunt.permissions.hasPermission(ctx.getPlayer(), Hunt.permissions.getPermission("HuntTop")))
+				.requires(Hunt.permissions.requires("HuntTop"))
 				.executes(this::run)
 				.then(Commands.literal("completions").executes(ctx -> show(ctx, HuntStats.Sort.COMPLETIONS)))
 				.then(Commands.literal("earned").executes(ctx -> show(ctx, HuntStats.Sort.EARNED)))

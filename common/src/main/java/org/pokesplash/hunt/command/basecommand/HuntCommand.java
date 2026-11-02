@@ -63,6 +63,12 @@ public class HuntCommand extends BaseCommand {
 
 		ServerPlayer sender = context.getSource().getPlayer();
 
+		// hunt.base only guards the menu; subcommands have their own permissions.
+		if (!Hunt.permissions.hasPermission(context.getSource(), getPermission())) {
+			sender.sendSystemMessage(Component.literal("§5[Hunt] §cYou don't have permission to open the hunts."));
+			return 0;
+		}
+
 		if (!Hunt.isActive()) {
 			sender.sendSystemMessage(Component.literal("§5[Hunt] §cHunts are temporarily unavailable."));
 			return 1;

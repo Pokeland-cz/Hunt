@@ -29,14 +29,7 @@ public class RefreshCommand extends Subcommand {
 	@Override
 	public LiteralCommandNode<CommandSourceStack> build() {
 		return Commands.literal("refresh")
-				.requires(ctx -> {
-					if (ctx.isPlayer()) {
-						return Hunt.permissions.hasPermission(ctx.getPlayer(),
-								Hunt.permissions.getPermission("HuntRefresh"));
-					} else {
-						return true;
-					}
-				})
+				.requires(Hunt.permissions.requires("HuntRefresh"))
 				.executes(this::refreshGlobal)
 				.then(Commands.argument("player", StringArgumentType.string())
 						.suggests((ctx, builder) -> {
