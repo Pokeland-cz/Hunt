@@ -30,7 +30,9 @@ allprojects {
     apply plugin: "maven-publish"
     apply plugin: "org.jetbrains.kotlin.jvm"
 
-    archivesBaseName = rootProject.archives_base_name
+    base {
+        archivesName = rootProject.archives_base_name
+    }
     version = rootProject.mod_version
     group = rootProject.maven_group
 
@@ -44,7 +46,7 @@ allprojects {
         mavenCentral()
 
         maven {
-            url "https://maven.impactdev.net/repository/development/"
+            url = "https://maven.impactdev.net/repository/development/"
         }
 
         maven {
@@ -55,7 +57,7 @@ allprojects {
         }
 
         maven {
-            url "https://maven.neoforged.net/releases/"
+            url = "https://maven.neoforged.net/releases/"
         }
 
         flatDir {

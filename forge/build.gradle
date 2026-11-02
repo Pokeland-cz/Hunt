@@ -17,8 +17,11 @@ configurations {
 dependencies {
     neoForge "net.neoforged:neoforge:${rootProject.neoforge_version}"
 
-    common(project(path: ":common", configuration: "namedElements")) { transitive false }
+    common(project(path: ":common", configuration: "namedElements")) { transitive = false }
     shadowCommon(project(path: ":common", configuration: "transformProductionNeoForge")) { transitive = false }
+
+    // Only for the sources jar remap: the common sources use Cobblemon classes.
+    modCompileOnly "com.cobblemon:neoforge:${rootProject.cobblemon_version}"
 
     implementation(include("ca.landonjw.gooeylibs:api:${rootProject.gooeylibs_version}"))
 }
