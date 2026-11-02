@@ -16,7 +16,7 @@ Značení: **[ověřeno]** = viděno v kódu Hunt nebo ve zdrojácích/bytecode 
 | 2 – config se nesmí přepsat (HUNT-004, 012, 016) | ✅ **Hotovo a otestováno (1.3.3)** | Chybný `config.json` na startu Hunt pozastaví (žádné hunty ani odměny, ERROR „PAUSED“). Reload s chybou ponechá starý config a ohlásí to adminovi. Config, lang, hunts i stats se zapisují atomicky přes `FileStore` s rotujícími zálohami `.bak.1–3`. `FileStore.read` rozlišuje „neexistuje“ a „nejde přečíst“. Migrace langu bere texty ze souboru. Build zelený (`-Xlint:all` bez nových varování), offline kontrola parserů a `FileStore` prošla (2026-11-02). Test na testovacím serveru (10.2/2, scénáře a–t) proběhl a prošel (2026-11-02), rotace záloh ověřena i na souborech po restartu. **Nasazeno na produkci (1.3.3) 2026-11-02.** Viz kapitola 10. |
 | 3 – testy (HUNT-015, část) | ✅ **Hotovo, nasazeno s 1.3.4** | JUnit 5 v `common`, 114 testů v 7 třídách: substituce placeholderů a blokování příkazů (`Placeholders`, nově vyčleněno z `Utils`), `PlayerNames`, `RarityConfig.getRandomRarity` (injektovaný `RandomGenerator`), `Config.parse`, `Lang.parse` a `FileStore`. `bash ./gradlew build` testy spouští a při selhání spadne. Mutační kontrola: 9 z 10 mutací zachyceno, 1 je ekvivalentní (2026-11-02). Runtime chování se nemění, vyšlo s krokem 4 v 1.3.4 (na produkci 2026-11-02). Nové nálezy HUNT-030, HUNT-031 a HUNT-032. Viz kapitola 11. |
 | 4 – `CompletionService` (HUNT-007) | ✅ **Hotovo, otestováno a nasazeno (1.3.4)** | Výplatní tok je vyčleněný do `CompletionService` s injektovanými závislostmi. Pořadí: claim → okamžité uložení `hunts.json` → PENDING v `payouts.log` (fsync, synchronně) → výplata → příkazy jen při úspěchu → stats → DONE. Při selhání ekonomiky se příkazy přeskočí a hráč dostane `payFailedMessage`. Nedokončené výplaty se při startu jen nahlásí. 138 testů, mutační kontrola 10 z 10, test na serveru (12.4/3 a–g) prošel. **Na produkci nasazeno 2026-11-02.** Viz kapitola 12. |
-| 5 – oprávnění (HUNT-009, 017) | 🟡 **Implementováno (1.3.5), čeká na test na serveru** | `reload`, `refresh`, `stats` a `top` kontrolují oprávnění u zdroje příkazu (`CommandSourceStack`), takže `execute as <mob>` už nic neobejde. `/hunts` je čistý alias, `hunt.base` řídí jen GUI. README uvádí skutečné uzly s prefixem `cobblemon.` (nový nález HUNT-033). 161 testů, mutační kontrola 6 z 6 (2026-11-02). Viz kapitola 13. |
+| 5 – oprávnění (HUNT-009, 017) | ✅ **Hotovo, otestováno a nasazeno (1.3.5)** | `reload`, `refresh`, `stats` a `top` kontrolují oprávnění u zdroje příkazu (`CommandSourceStack`), takže `execute as <mob>` už nic neobejde. `/hunts` je čistý alias, `hunt.base` řídí jen GUI. README uvádí skutečné uzly s prefixem `cobblemon.` (nový nález HUNT-033). 161 testů, mutační kontrola 6 z 6, test na serveru (13.4 a–f) prošel. **Na produkci nasazeno 2026-11-02.** Viz kapitola 13. |
 | 6–9 | ⬜ Neprovedeno | |
 
 ---
@@ -182,7 +182,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
   - Neznámý druh v `customPrices` nebo `blacklist` se tiše ignoruje.
 - **Oprava:** `ConfigValidator` s jasnými hláškami (`config.json: huntDuration musí být > 0, použito 60`), kontrola druhů proti `PokemonSpecies` a odmítnutí neplatného configu (viz HUNT-004). **M**.
 
-#### 🟡 HUNT-009 · [implementováno v 1.3.5, krok 5, čeká na test na serveru] · Oprávnění se obchází ze zdroje, který není hráč · E · [ověřeno]
+#### ✅ HUNT-009 · [opraveno v 1.3.5, krok 5] · Oprávnění se obchází ze zdroje, který není hráč · E · [ověřeno]
 - **Kde:** `command/subcommand/RefreshCommand.java:32-39`, `ReloadCommand.java:26-33`, `StatsCommand.java:33`, `TopCommand.java:29`, `util/BaseCommand.java:69-76`: `if (ctx.isPlayer()) {check} else return true`.
 - **Popis:** `isPlayer()` je false pro konzoli, command blocky a také pro `/execute as <ne-hráč> run hunt refresh` a pro módy, které spouštějí příkazy jménem entity nebo NPC.
 - **Scénář:** Hráč, který má přes LuckPerms `minecraft.command.execute` (některé servery ho dávají kvůli `/execute` v minihrách), napíše `/execute as @e[type=cow,limit=1] run hunt refresh` a přelosuje globální hunty („reroll“ na lukrativní cíle). Stejně tak `hunt reload`.
@@ -237,7 +237,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 
 | ID | Oblast | Kde | Popis a scénář | Oprava | Náročnost |
 |---|---|---|---|---|---|
-| 🟡 HUNT-017 (1.3.5, krok 5) | E | `util/BaseCommand.java:59-62` vs README | `/hunt` (root) **nemá** `requires`, alias `/hunts` vyžaduje `hunt.base`. README tvrdí, že `/hunt` vyžaduje `hunt.base`. Odebrání `hunt.base` v LuckPerms tedy nic nezakáže. [ověřeno] | Sjednotit a opravit README. | S |
+| ✅ HUNT-017 (opraveno v 1.3.5, krok 5) | E | `util/BaseCommand.java:59-62` vs README | `/hunt` (root) **nemá** `requires`, alias `/hunts` vyžaduje `hunt.base`. README tvrdí, že `/hunt` vyžaduje `hunt.base`. Odebrání `hunt.base` v LuckPerms tedy nic nezakáže. [ověřeno] | Sjednotit a opravit README. | S |
 | HUNT-018 | A | `broadcast/Broadcaster.java:131-135` | Zprávy v okně bufferu se **zahazují**, nefrontují. Všechny globální hunty vznikají najednou, takže i expirují najednou a oznámí se jen 1 ze 7 nových huntů. Druhé chycení do 5 s se neoznámí. [ověřeno] | Agregovat zprávy („Nové hunty: A, B, C“) nebo rozprostřít `endtime`. | S |
 | HUNT-019 | A | `hunts/CurrentHunts.java:169-175` | Individuální režim ignoruje flag `broadcast`: hráč po vlastním splnění i po `/hunt refresh` dostane „hunt skončil“. [ověřeno] | Respektovat flag. | S |
 | HUNT-020 | A | `util/Utils.java:266` | `{pokemon}` v příkazech = přeložené jméno, případně s titulem marku (`getDisplayName(true)`): „Mr. Mime“, „Farfetch'd“, „Vulpix the Peppy“. Mezery posunou argumenty příkazu. [ověřeno] | Přidat `{species_id}` a `{form}`. | S |
@@ -394,7 +394,7 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 | 2 | ✅ **HOTOVO (1.3.3)** · **Config se nesmí přepsat:** rozlišit „neexistuje“ a „nečitelný“; při chybě parsování na startu běžet bez odměn + ERROR, při `/hunt reload` ponechat starý config; config a lang zapisovat přes `FileStore` (atomicky); opravit migraci langu; `FileStore.read` při IOException neházet „soubor neexistuje“ | 004, 012, 016 | M |
 | 3 | ✅ **HOTOVO (1.3.4)** · **Testy:** JUnit 5 v `common`; testy substituce (`@a`, `Ash$1`, `a\`, `x;y`, `"`), `RarityConfig.getRandomRarity`, načítání rozbitého configu | 015 (část) | S |
 | 4 | ✅ **HOTOVO a nasazeno (1.3.4)** · **`CompletionService`:** vyčlenit výplatní tok z `CaptureEvent` (claim → log PENDING → ekonomika → příkazy jen při úspěchu → log DONE → stats), po completion vynutit uložení `hunts.json`; testy (selhání ekonomiky, dvojí completion) | 007 | M |
-| 5 | 🟡 **IMPLEMENTOVÁNO (1.3.5)** · **Oprávnění:** `requires` přes `CommandSourceStack` místo `isPlayer() ? check : true`; sjednotit `/hunt` a `/hunts` a opravit README | 009, 017 | S |
+| 5 | ✅ **HOTOVO a nasazeno (1.3.5)** · **Oprávnění:** `requires` přes `CommandSourceStack` místo `isPlayer() ? check : true`; sjednotit `/hunt` a `/hunts` a opravit README | 009, 017 | S |
 | 6 | **Validace configu** s jasnými hláškami (`huntDuration > 0`, `huntAmount 1–28`, váhy, `economy`, ceny, existence druhů v `customPrices` a `blacklist`) | 008 | M |
 | 7 | **Admin příkazy:** reset stats, `save`, zobrazení stats podle UUID | 013, 028 | S |
 | 8 | **Úklid:** `old/` (po ověření, že nikdo nemá config < 1.2.3), `DebugCommand`, `Settings.java`, Utils IO, `fabric.mod.json` (`cobblemon <1.9`, `fabric-api`), Gradle deprecations, `gradlew +x`; rozhodnout o `forge/` | 023, 024 | S |
@@ -412,7 +412,7 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 2. ~~**Jen pokud ověření selže**~~ *(nebylo potřeba, ověření prošlo)* (hráč se jménem mimo `[A-Za-z0-9_]` se dostane na Cobblemon server): okamžitě odstranit `{player}` z `captureHuntBroadcast` v `lang.json` a z reward příkazů, pak `/hunt reload`. Odměny přes příkazy tím do hotfixu přestanou fungovat. Placeholder `{uuid}` (vanilla `give` UUID přijme) přidá až krok 0.
 3. **Kroky 0 a 1 jako jeden hotfix release.** ✅ Nasazeno 2026-11-02 (v 1.3.3 spolu s krokem 2). Po nasazení 1–2 dny sledovat `payouts.log`. Měna je převoditelná, takže log je jediný způsob, jak zpětně najít případné zneužití.
 4. Krok 2 (config) před další úpravou `config.json` na produkci. **Hotovo, otestováno a nasazeno v 1.3.3 (2026-11-02)** (kapitola 10).
-5. Kroky 3–4 (testy a `CompletionService`). ✅ **Hotovo, otestováno a nasazeno v 1.3.4 (2026-11-02)** (kapitoly 11 a 12). Dál kroky 5–6.
+5. Kroky 3–4 (testy a `CompletionService`). ✅ **Hotovo, otestováno a nasazeno v 1.3.4 (2026-11-02)** (kapitoly 11 a 12). Krok 5 (oprávnění) ✅ **hotovo, otestováno a nasazeno v 1.3.5 (2026-11-02)** (kapitola 13). Dál krok 6.
 6. Kroky 7–9 průběžně.
 7. Ruční test GUI (HUNT-027). Test spawn zdrojů (HUNT-010) už není potřeba: podle provozovatele spawnuje divoké Pokémony jen Cobblemon (revize 3).
 
@@ -663,9 +663,9 @@ Testy: nové `event/CompletionServiceTest` (14) a `event/PayoutJournalTest` (9),
 
 ---
 
-## 13. Plán kroku 5: oprávnění (1.3.5) · 🟡 IMPLEMENTOVÁNO, čeká na test na serveru
+## 13. Plán kroku 5: oprávnění (1.3.5) · ✅ HOTOVO, otestováno a nasazeno
 
-**Stav:** Změny A–F z 13.2 jsou implementované. Z ověření prošel build (161 testů, `-Xlint:all` bez nových varování) a mutační kontrola 6 z 6 (2026-11-02). **Test na serveru (13.4) zbývá.** Odchylky a nový nález HUNT-033 jsou v 13.6.
+**Stav:** Změny A–F z 13.2 jsou implementované. Z ověření prošel build (161 testů, `-Xlint:all` bez nových varování) a mutační kontrola 6 z 6 (2026-11-02). **Test na serveru (13.4, scénáře a–f) proběhl a prošel a 1.3.5 je nasazená na produkci (2026-11-02).** Odchylky a nový nález HUNT-033 jsou v 13.6.
 
 **Cíl:** Oprávnění se kontrolují u zdroje příkazu (`CommandSourceStack`), ne podle `isPlayer() ? kontrola : povolit` (HUNT-009). `/hunt` a `/hunts` se chovají stejně a README odpovídá kódu (HUNT-017).
 **Rozhodnutí provozovatele (2026-11-02):** `hunt.base` řídí **jen GUI**. Bez něj `/hunt` i `/hunts` nezobrazí GUI a hráč dostane hlášku. Podpříkazy (`stats`, `top`, `reload`, `refresh`) se řídí jen svými oprávněními.
@@ -699,7 +699,7 @@ Odhad: ~8 souborů, ~80 změněných řádků, náročnost **S**.
 - Pokud by `CommandSourceStack` nešel v testu bez bootstrapu MC sestavit, fallback je test samotného predikátu z `Permissions.requires` s falešným validatorem a stubem zdroje. Rozhodnu při implementaci a zapíšu do odchylek.
 - Mutační kontrola: vrátit `isPlayer() ? … : true` u `refresh`, vynechat kontrolu `hunt.base` v GUI, `requires` na aliasu zpět.
 
-### 13.4 Ověření na testovacím serveru
+### 13.4 Ověření na testovacím serveru · ✅ prošlo 2026-11-02
 - a) Běžný hráč bez OP: `/hunt`, `/hunts`, `/hunt stats`, `/hunt top` fungují. `/hunt reload` a `/hunt refresh` nejsou v tab completion a hlásí neznámý příkaz.
 - b) Týž hráč s `minecraft.command.execute` (LuckPerms): `/execute as @e[type=cow,limit=1] run hunt refresh` **neprojde** a hunty se nezmění. Totéž s `hunt reload`.
 - c) OP 2 nebo LuckPerms `cobblemon.hunt.refresh` / `cobblemon.hunt.reload` (pozor na prefix, HUNT-033): příkazy fungují, i přes `/hunts refresh`.
