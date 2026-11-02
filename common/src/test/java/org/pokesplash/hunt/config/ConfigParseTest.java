@@ -130,20 +130,17 @@ class ConfigParseTest {
 		assertEquals("minecraft:gray_dye", config.getPackIconItem());
 	}
 
+	/** Step 8: a 1.2.x config is no longer migrated. It is rejected (Hunt pauses) instead of paying in a guessed currency. */
 	@Test
-	void oldVersionIsMigratedAndKeepsCurrency() throws ConfigLoadException {
-		Config config = Config.parse(defaultJsonWith(root -> {
+	void legacyConfigIsRejected() {
+		ConfigLoadException e = assertThrows(ConfigLoadException.class, () -> Config.parse(defaultJsonWith(root -> {
 			root.addProperty("version", "1.2.2");
 			root.remove("economy");
 			root.remove("currencyName");
 			root.addProperty("impactorCurrencyName", "impactor:gold");
-			root.addProperty("huntDuration", 30);
-		}));
-		assertTrue(config.isUpgraded());
-		assertEquals(Hunt.CONFIG_VERSION, config.getVersion());
-		assertEquals(Economy.IMPACTOR, config.getEconomy());
-		assertEquals("impactor:gold", config.getCurrencyName());
-		assertEquals(30, config.getHuntDuration());
+		})));
+		assertTrue(e.getMessage().contains("1.2.x"), e.getMessage());
+		assertTrue(e.getMessage().contains("economy"), e.getMessage());
 	}
 
 	@Test
@@ -180,19 +177,6 @@ class ConfigParseTest {
 		assertEquals(Economy.BLANKET, config.getEconomy());
 		assertEquals("blanket:coin", config.getCurrencyName());
 		assertTrue(config.isUpgraded());
-	}
-
-	@Test
-	void legacyConfigNeedsNoEconomyKey() throws ConfigLoadException {
-		Config config = Config.parse(defaultJsonWith(root -> {
-			root.remove("version");
-			root.remove("economy");
-			root.remove("currencyName");
-			root.addProperty("impactorCurrencyName", "impactor:gold");
-		}));
-		assertEquals(Economy.IMPACTOR, config.getEconomy());
-		assertEquals("impactor:gold", config.getCurrencyName());
-		assertTrue(config.getWarnings().isEmpty(), config.getWarnings().toString());
 	}
 
 	/** HUNT-031: a missing section key no longer silently gives the default rewards. */

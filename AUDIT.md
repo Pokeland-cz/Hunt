@@ -20,7 +20,8 @@ Značení: **[ověřeno]** = viděno v kódu Hunt nebo ve zdrojácích/bytecode 
 | HUNT-033 – uzly oprávnění | ✅ **Hotovo, otestováno a nasazeno (1.3.6)** | Uzly jsou zase `hunt.*` (bez prefixu `cobblemon.`), jak uvádělo původní README. Nová třída `HuntPermission` předává uzel Cobblemon validatoru beze změny. V LuckPerms provozovatele žádné uzly Hunt nastavené nejsou, takže se nic nerozbije. 161 testů, test na serveru (14.2 a–e) prošel. **Na produkci nasazeno 2026-11-02.** Viz kapitola 14. |
 | 6 – validace configu (HUNT-008, 030, 031, 032) | ✅ **Hotovo, otestováno a nasazeno (1.3.7)** | Nový `ConfigValidator`: neplatné hodnoty a chybějící sekce jsou chyba (start → pauza, reload → starý config), drobnosti jsou varování s bezpečnou hodnotou, v logu i žlutě v chatu při `/hunt reload`. Neznámé druhy a formy v `customPrices` a `blacklist` → varování. Config bez `version` si nechá ekonomiku i měnu. `{price}` vždy s tečkou. 226 testů, mutační kontrola 10 z 10, build zelený, `-Xlint:all` bez nových varování (2026-11-02). Test na serveru prošel, **na produkci nasazeno 2026-11-02**. Se stejným releasem: kompilace proti Cobblemonu 1.8.4, Fabric Loaderu 0.20.1 a Fabric API 0.116.17 a opravy buildu (15.6). Viz kapitola 15. |
 | 7 – admin příkazy (HUNT-013, 028) | ✅ **Hotovo, otestováno a nasazeno (1.3.8)** | `/hunt admin save`, `/hunt admin stats reset <jméno\|uuid> [confirm]`, `/hunt admin stats resetall [confirm]` (potvrzení do 30 s stejným zdrojem, snapshot před resetem všech, WARN se smazaným záznamem). `/hunt stats` bere UUID a u nejednoznačného jména vypíše shody s UUID. 271 testů, mutační kontrola 11 z 11, build zelený, `-Xlint:all` bez nových varování (2026-11-02). Test na serveru (16.5/2 a–g) prošel, **na produkci nasazeno 2026-11-02**. Viz kapitola 16. |
-| 8–9 | ⬜ Neprovedeno | |
+| 8 – úklid (HUNT-023, 024) | ✅ **Hotovo, otestováno a nasazeno (1.3.9)** | Smazané `old/` i migrace configu 1.2.x (takový config teď Hunt pozastaví s jasnou hláškou), `DebugCommand`, `Settings.java` a modul `forge/`. `fabric.mod.json`: `cobblemon >=1.8.4 <1.9.0-`, `fabric-api`, `environment: server`, bez `icon.png`. Shadow `com.gradleup.shadow` 8.3.11, Loom 1.10.455 a architectury-plugin 3.4.164 pinnuté, Impactor API 5.3.0, `gradlew` +x. 270 testů, mutační kontrola 1 z 1, `--warning-mode all` bez varování, `-Xlint:all` bez varování (2026-11-02). Test na serveru prošel, **na produkci nasazeno 2026-11-02**. Viz kapitola 17. |
+| 9 | ⬜ Neprovedeno | |
 
 ---
 
@@ -205,6 +206,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 - **Oprava:** Účet předem načíst při joinu, případně platit asynchronně a výsledek vrátit na hlavní vlákno (`server.execute`). Instanci služby cachovat. **S–M**.
 - **Otázka:** Jaký storage backend používá Impactor na serveru?
 - **Odpověď provozovatele (2026-11-02):** JSON (lokální soubory). `join()` tedy nečeká na síť ani databázi, nejvýš na čtení malého lokálního souboru u účtu, který ještě není načtený. **Závažnost snížena na Nízká**, samostatný krok není potřeba. Cache instance ekonomické služby lze přidat v kroku 8. Přehodnotit při přechodu Impactoru na SQL.
+- **Krok 8 (2026-11-02):** cache vynechána (rozhodnutí provozovatele), přínos při JSON backendu je zanedbatelný. Nález zůstává otevřený.
 
 #### ✅ HUNT-012 · [opraveno v 1.3.3, krok 2] · Chyba IO při čtení dat = „soubor neexistuje“ → přepsání · C · [ověřeno]
 - **Kde:** `util/FileStore.java:49-51` (IOException → `null`), `stats/HuntStats.java:54-69`, `hunts/HuntStorage.java:69-72`.
@@ -247,8 +249,8 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 | HUNT-020 | A | `util/Utils.java:266` | `{pokemon}` v příkazech = přeložené jméno, případně s titulem marku (`getDisplayName(true)`): „Mr. Mime“, „Farfetch'd“, „Vulpix the Peppy“. Mezery posunou argumenty příkazu. [ověřeno] | Přidat `{species_id}` a `{form}`. | S |
 | HUNT-021 | A | `hunts/SingleHunt.java:285-287` | Hunt Pokémon nikdy není shiny, takže `matchProperties.shiny=true` znamená „shiny se NEpočítá“. Matoucí. [ověřeno] | Přejmenovat nebo zdokumentovat, případně možnost „shiny bonus“. | S |
 | HUNT-022 | A | `hunts/SpawnRates.java:159-161` | Vyřazuje se jen label `legendary`. `mythical`, `ultra_beast` a `paradox` projdou, pokud je nějaký datapack nebo addon dá do world poolu. [ověřeno, výskyt je otázka] | Konfigurovatelný seznam vyřazených labelů. | S |
-| HUNT-023 | F | `fabric.mod.json`, `build.gradle` | Produkce běží na 1.8.4, build kompiluje proti 1.8.0. `cobblemon >=1.8.0` bez horní hranice (1.8 už jednou rozbila spawning API, viz komentář `SpawnRates.java:47-51`). Chybí `fabric-api` v `depends`, `icon.png` neexistuje, `environment: "*"` u server-only módu. SNAPSHOT závislosti, Gradle deprecations (kap. 3), `gradlew` bez +x. [ověřeno] | `cobblemon: ">=1.8.0 <1.9"`, doplnit depends, pinout verze. | S |
-| HUNT-024 | F | `command/subcommand/DebugCommand.java`, `old/*`, `Settings.java`, `forge/*`, `util/Utils.java:44-181` | Mrtvý nebo matoucí kód: neregistrovaný Debug (navíc hlásí slot −1), prázdný `Settings.java` v rootu. `readFileAsync`/`writeFileAsync` jsou ve skutečnosti synchronní (`join`, `get`) a `writeFileAsync` nekontroluje částečný zápis. NeoForge modul na Fabric serveru nikdo netestuje. [ověřeno] | Smazat, sjednotit IO na `FileStore`. **Krok 2 (1.3.3):** `Utils` IO metody a mrtvé `LangOld.init` / `ConfigOld.write` jsou odstraněné, veškeré IO jde přes `FileStore`. `LangOld` už nikdo nepoužívá. | S |
+| ✅ HUNT-023 (opraveno v 1.3.9, krok 8) | F | `fabric.mod.json`, `build.gradle` | Produkce běží na 1.8.4, build kompiluje proti 1.8.0. `cobblemon >=1.8.0` bez horní hranice (1.8 už jednou rozbila spawning API, viz komentář `SpawnRates.java:47-51`). Chybí `fabric-api` v `depends`, `icon.png` neexistuje, `environment: "*"` u server-only módu. SNAPSHOT závislosti, Gradle deprecations (kap. 3), `gradlew` bez +x. [ověřeno] | `cobblemon: ">=1.8.0 <1.9"`, doplnit depends, pinout verze. **Krok 8 (1.3.9):** vše kromě GooeyLibs, která zůstává `3.1.0-1.21.1-SNAPSHOT` (viz 17.1). | S |
+| ✅ HUNT-024 (opraveno v 1.3.9, krok 8) | F | `command/subcommand/DebugCommand.java`, `old/*`, `Settings.java`, `forge/*`, `util/Utils.java:44-181` | Mrtvý nebo matoucí kód: neregistrovaný Debug (navíc hlásí slot −1), prázdný `Settings.java` v rootu. `readFileAsync`/`writeFileAsync` jsou ve skutečnosti synchronní (`join`, `get`) a `writeFileAsync` nekontroluje částečný zápis. NeoForge modul na Fabric serveru nikdo netestuje. [ověřeno] | Smazat, sjednotit IO na `FileStore`. **Krok 2 (1.3.3):** `Utils` IO metody a mrtvé `LangOld.init` / `ConfigOld.write` jsou odstraněné, veškeré IO jde přes `FileStore`. `LangOld` už nikdo nepoužívá. **Krok 8 (1.3.9):** `old/`, `DebugCommand`, `Settings.java` a `forge/` smazané. | S |
 | HUNT-025 | B/D | `broadcast/Broadcaster.java:20`, `hunts/HuntManager.java:66-71` | `playerBuffers` roste do reloadu (malý leak, 1 záznam na hráče). `checkOnlinePlayers` každou sekundu kopíruje množinu **všech** známých UUID a hledá je mezi online hráči. Iterovat stačí online hráče. [ověřeno] | Iterovat `getPlayerList().getPlayers()`, čistit při disconnectu. | S |
 | HUNT-026 | A | `hunts/CurrentHunts.java:66, 192-197` | `taken` se počítá až po odebrání splněného huntu, takže stejný druh může být hned znovu vylosován. Hráč na spawnu daného druhu dostane šanci 1/|bucket| na okamžité další splnění. [ověřeno, malý dopad] | Vyloučit právě splněný cíl. | S |
 | HUNT-027 | A/F | `command/basecommand/HuntCommand.java:127,161-163` | GUI je statické (čas se neaktualizuje). Hráči se zobrazuje `e.getMessage()` (interní detaily). GooeyLibs `GooeyContainer` přepisuje `clicked()` i `quickMoveStack()` a volá `patchDesyncs` [ověřeno v bytecode], takže vytažení itemů je nepravděpodobné a GUI nemá akce. **Doporučuji ruční test** (shift-click, čísla 1–9, drag, double-click, Q, zavření při lagu). | Generická hláška hráči. | S |
@@ -401,7 +403,7 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 | 5 | ✅ **HOTOVO a nasazeno (1.3.5)** · **Oprávnění:** `requires` přes `CommandSourceStack` místo `isPlayer() ? check : true`; sjednotit `/hunt` a `/hunts` a opravit README | 009, 017 | S |
 | 6 | ✅ **HOTOVO a nasazeno (1.3.7)** · **Validace configu** s jasnými hláškami (`huntDuration > 0`, `huntAmount 1–28`, váhy, `economy`, ceny, existence druhů v `customPrices` a `blacklist`) | 008 | M |
 | 7 | ✅ **HOTOVO a nasazeno (1.3.8)** · **Admin příkazy:** reset stats, `save`, zobrazení stats podle UUID | 013, 028 | S |
-| 8 | **Úklid:** `old/` (po ověření, že nikdo nemá config < 1.2.3), `DebugCommand`, `Settings.java`, Utils IO, `fabric.mod.json` (`cobblemon <1.9`, `fabric-api`), Gradle deprecations, `gradlew +x`; rozhodnout o `forge/` | 023, 024 | S |
+| 8 | ✅ **HOTOVO a nasazeno (1.3.9)** · **Úklid:** `old/` (po ověření, že nikdo nemá config < 1.2.3), `DebugCommand`, `Settings.java`, Utils IO, `fabric.mod.json` (`cobblemon <1.9`, `fabric-api`), Gradle deprecations, `gradlew +x`; rozhodnout o `forge/` | 023, 024 | S |
 | 9 | **Kosmetika a drobnosti:** agregované broadcasty, `{species_id}`, labely mythical/UB/paradox, datapack reload hook, GUI hláška, vyloučení právě splněného cíle | 018, 020, 021, 022, 026, 027, 029 | S |
 | — | **Odloženo, dokud se nezapne `individualHunts`:** HUNT-005 (policy výplat), HUNT-006 (lehký model, prune, serializace mimo tick), HUNT-019, HUNT-025 | 005, 006, 019, 025 | M–L |
 | — | ~~**Podle výsledku testu na serveru:** HUNT-010 (původ Pokémona), HUNT-011 (Impactor `join()`)~~ **Odpovězeno 2026-11-02:** jen Cobblemon spawny a Impactor na JSON, oba nálezy sníženy na Nízká. Případně krok 8 (cache služby) a 9 (PokeSnack) | 010, 011 | S |
@@ -416,7 +418,7 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 2. ~~**Jen pokud ověření selže**~~ *(nebylo potřeba, ověření prošlo)* (hráč se jménem mimo `[A-Za-z0-9_]` se dostane na Cobblemon server): okamžitě odstranit `{player}` z `captureHuntBroadcast` v `lang.json` a z reward příkazů, pak `/hunt reload`. Odměny přes příkazy tím do hotfixu přestanou fungovat. Placeholder `{uuid}` (vanilla `give` UUID přijme) přidá až krok 0.
 3. **Kroky 0 a 1 jako jeden hotfix release.** ✅ Nasazeno 2026-11-02 (v 1.3.3 spolu s krokem 2). Po nasazení 1–2 dny sledovat `payouts.log`. Měna je převoditelná, takže log je jediný způsob, jak zpětně najít případné zneužití.
 4. Krok 2 (config) před další úpravou `config.json` na produkci. **Hotovo, otestováno a nasazeno v 1.3.3 (2026-11-02)** (kapitola 10).
-5. Kroky 3–4 (testy a `CompletionService`). ✅ **Hotovo, otestováno a nasazeno v 1.3.4 (2026-11-02)** (kapitoly 11 a 12). Krok 5 (oprávnění) ✅ **hotovo, otestováno a nasazeno v 1.3.5 (2026-11-02)** (kapitola 13). Krok 6 (validace configu) ✅ **hotovo, otestováno a nasazeno v 1.3.7 (2026-11-02)** (kapitola 15). Krok 7 (admin příkazy) ✅ **hotovo, otestováno a nasazeno v 1.3.8 (2026-11-02)** (kapitola 16). Dál krok 8.
+5. Kroky 3–4 (testy a `CompletionService`). ✅ **Hotovo, otestováno a nasazeno v 1.3.4 (2026-11-02)** (kapitoly 11 a 12). Krok 5 (oprávnění) ✅ **hotovo, otestováno a nasazeno v 1.3.5 (2026-11-02)** (kapitola 13). Krok 6 (validace configu) ✅ **hotovo, otestováno a nasazeno v 1.3.7 (2026-11-02)** (kapitola 15). Krok 7 (admin příkazy) ✅ **hotovo, otestováno a nasazeno v 1.3.8 (2026-11-02)** (kapitola 16). Krok 8 (úklid) ✅ **hotovo, otestováno a nasazeno v 1.3.9 (2026-11-02)** (kapitola 17). Dál krok 9.
 6. Kroky 7–9 průběžně.
 7. Ruční test GUI (HUNT-027). Test spawn zdrojů (HUNT-010) už není potřeba: podle provozovatele spawnuje divoké Pokémony jen Cobblemon (revize 3).
 
@@ -895,3 +897,51 @@ Literál `admin` (a `stats` pod ním) vyžaduje kterýkoli z podřízených uzl�
 - `/hunt stats <jméno>` může místo dřívější „první shody“ vypsat seznam shod. U jednoznačných jmen se nic nemění.
 - `admin save` a uložení po resetu zapisují synchronně na hlavním vlákně (malý soubor, stejně jako config při reloadu).
 - Snapshoty `stats-reset-*.json` se samy nemažou.
+
+---
+
+## 17. Plán kroku 8: úklid (1.3.9) · ✅ HOTOVO, otestováno a nasazeno
+
+**Stav:** Změny A–O ze 17.1 jsou implementované. Build je zelený (270 testů), `--warning-mode all` i `-Xlint:all` bez varování a mutační kontrola zachytila 1 z 1 mutací (2026-11-02). **Test na serveru (17.3) proběhl a prošel a 1.3.9 je nasazená na produkci (2026-11-02, potvrzeno provozovatelem).**
+
+**Cíl:** HUNT-023 (metadata a build) a HUNT-024 (mrtvý kód).
+**Rozhodnutí provozovatele (2026-11-02):** smazat `forge/`, smazat `old/` **i migraci configu 1.2.x**, HUNT-011 (cache ekonomiky) vynechat.
+**Mimo rozsah:** HUNT-011, kosmetika z kroku 9, Kotlin plugin (zůstává), `test-data/` (záměrně commitnutá ukázková data). **Datové formáty se nemění**, návrat na 1.3.8 = výměna jaru.
+
+### 17.1 Změny
+| # | Soubor | Změna |
+|---|---|---|
+| A | `old/*` | Smazáno (`ConfigOld`, `LangOld`, `RarityConfigOld`, `CustomPriceOld`). |
+| B | `config/Config.java` | Bez migrace 1.2.x. Varování „version is …“ platí pro každý soubor bez aktuální verze. |
+| C | `config/ConfigValidator.java` | `economy` je vždy povinné. Chybí-li a soubor má `impactorCurrencyName`, chyba vysvětlí, že jde o config z 1.2.x, který se už nemigruje (start → pauza, reload → starý config, soubor se nepřepíše). |
+| D | `command/subcommand/DebugCommand.java` | Smazáno (nebyl registrovaný). |
+| E | `Settings.java` | Smazáno (1 bajt v rootu). |
+| F | `forge/`, `settings.gradle` | Modul smazán. Repo `maven.minecraftforge.net` v `pluginManagement` **zůstává**: Architectury Loom ho potřebuje i pro samotný Fabric build (`installertools`, `mcinjector`, `DiffPatch`). |
+| G | `build.gradle` | Loom `1.10-SNAPSHOT` → `1.10.455`, architectury-plugin `3.4-SNAPSHOT` → `3.4.164`, repo NeoForged pryč. |
+| H | `common/build.gradle` | `common("fabric")`. |
+| I | `gradle.properties` | `mod_version=1.3.9`, `neoforge_version` pryč, Impactor API `5.3.0-SNAPSHOT` → `5.3.0` (jen kompilace, do jaru se nebalí). **GooeyLibs zůstává `3.1.0-1.21.1-SNAPSHOT`:** jediný release `3.1.1-1.21.x` deklaruje `minecraft >=1.21`, obsahuje mixiny a balí se do jaru (jar-in-jar), takže by šlo o změnu za běhu bez ověření na 1.21.1. |
+| J | `fabric/build.gradle` | `com.github.johnrengelman.shadow` 7.1.2 → `com.gradleup.shadow` 8.3.11. `processResources` čte verzi při konfiguraci (dřív `Task.project` při spuštění, deprecation pro Gradle 10). |
+| K | `fabric.mod.json` | `"cobblemon": ">=1.8.4 <1.9.0-"`, `"fabric-api": "*"`, `"environment": "server"`, bez `"icon"`. Predikát ověřen proti Fabric Loaderu 0.20.1: 1.8.0 a 1.8.3 ne, 1.8.4 a 1.8.10 ano, 1.9.0-beta.1 a 1.9.0 ne. |
+| L | `gradlew` | Executable bit (i v gitu, `100755`). |
+| M | `ConfigParseTest` | `oldVersionIsMigratedAndKeepsCurrency` a `legacyConfigNeedsNoEconomyKey` nahrazeny `legacyConfigIsRejected`. |
+| N | `README.md` | Instalace jen Fabric (dedikovaný server), požadavky, poznámka ke configu 1.2.x. |
+| O | `AUDIT.md` | Tato kapitola, stav, HUNT-011, 023 a 024. |
+
+### 17.2 Ověření
+1. ✅ `bash ./gradlew build --rerun-tasks --warning-mode all`: zelený, 270 testů, **žádné** deprecation varování (dřív shadow plugin a `Task.project`). `-Xlint:all`: bez varování (`[this-escape]` v `HuntForge` zmizel s modulem).
+2. ✅ Obsah `Hunt-1.3.9-fabric.jar` proti 1.3.8: chybí jen `old/*` a `DebugCommand`, jinak jen nový hash v názvu architectury balíčku. GooeyLibs jar-in-jar beze změny. Sources jar: chybí jen tytéž soubory. `fabric.mod.json` v jaru má verzi `1.3.9` a nové `depends`.
+3. ✅ Mutace: validátor přijme legacy config bez `economy` → `legacyConfigIsRejected` selže.
+
+### 17.3 Test na serveru · ✅ prošlo 2026-11-02
+Před každým scénářem zálohovat `config/hunt/`.
+- a) Start s Cobblemonem 1.8.4 a Fabric API: Hunt se načte, žádná chyba závislostí.
+- b) Regrese: chycení a výplata (`PAID` v `payouts.log`), GUI `/hunt`, `/hunt reload`, `/hunt admin save`.
+- c) Config 1.2.x (`impactorCurrencyName`, bez `economy`) na startu → ERROR s hláškou o 1.2.x, PAUSED, `config.json` beze změny (`sha256sum`). Totéž přes `/hunt reload` → hláška, starý config zůstane.
+- d) (volitelné) Bez Fabric API → loader odmítne start s hláškou o chybějící závislosti.
+
+### 17.4 Rizika
+- `environment: "server"`: Hunt se nenačte v singleplayeru ani na LAN.
+- Config 1.2.x se už nenačte (pauza bez ztráty dat). Produkční config je aktuální.
+- Cobblemon 1.9 nebo 1.8.0–1.8.3: Fabric odmítne start serveru, dokud se Hunt neověří nebo nesrovná verze.
+- Shadow 8.3: obsah jaru ověřen v 17.2/2.
+- GooeyLibs dál SNAPSHOT: pokud ho repo smaže, build přestane jít. Řešení je přechod na release po ověření na 1.21.1.

@@ -36,7 +36,7 @@ test {
 }
 
 architectury {
-    common("fabric", "neoforge")
+    common("fabric")
 }
 
 publishing {

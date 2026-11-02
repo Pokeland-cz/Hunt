@@ -7,7 +7,6 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.enumeration.Economy;
-import org.pokesplash.hunt.old.ConfigOld;
 import org.pokesplash.hunt.util.Utils;
 
 import java.util.ArrayList;
@@ -81,29 +80,11 @@ public class Config extends Versioned {
 			throw new ConfigLoadException(e.getMessage(), e);
 		}
 
-		// Only a real 1.2.x file is migrated: it has impactorCurrencyName and no economy. A current file that
-		// just lacks "version" keeps its economy and currency (HUNT-032).
-		boolean legacy = root.has("impactorCurrencyName") && !root.has("economy");
-		List<String> warnings = new ArrayList<>();
-		if (legacy) {
-			ConfigOld cfgOld;
-			try {
-				cfgOld = gson.fromJson(root, ConfigOld.class);
-			} catch (JsonParseException | IllegalStateException | NumberFormatException e) {
-				throw new ConfigLoadException(e.getMessage(), e);
-			}
-			cfg.economy = Economy.IMPACTOR;
-			if (cfgOld.getImpactorCurrencyName() != null) {
-				cfg.currencyName = cfgOld.getImpactorCurrencyName();
-			}
-			cfg.upgraded = true;
-		}
-
-		ConfigValidator.Result result = ConfigValidator.validate(cfg, root, legacy);
+		ConfigValidator.Result result = ConfigValidator.validate(cfg, root);
 		if (!result.errors().isEmpty()) {
 			throw new ConfigLoadException(String.join("; ", result.errors()));
 		}
-		warnings.addAll(result.warnings());
+		List<String> warnings = new ArrayList<>(result.warnings());
 
 		// Older configs don't have the icon options yet, write them so they are visible.
 		if (!root.has("usePackIcons")) {
@@ -115,10 +96,8 @@ public class Config extends Versioned {
 		boolean currentVersion = version != null && version.isJsonPrimitive()
 				&& Hunt.CONFIG_VERSION.equals(version.getAsString());
 		if (!currentVersion) {
-			if (!legacy) {
-				warnings.add("version is " + (version == null ? "missing" : version.toString()) + ", set to "
-						+ Hunt.CONFIG_VERSION + ". The other values were kept.");
-			}
+			warnings.add("version is " + (version == null ? "missing" : version.toString()) + ", set to "
+					+ Hunt.CONFIG_VERSION + ". The other values were kept.");
 			cfg.setVersion(Hunt.CONFIG_VERSION);
 			cfg.upgraded = true;
 		}

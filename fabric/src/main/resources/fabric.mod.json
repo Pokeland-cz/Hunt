@@ -9,9 +9,8 @@
   "contact": {},
 
   "license": "MIT",
-  "icon": "icon.png",
 
-  "environment": "*",
+  "environment": "server",
   "entrypoints": {
     "main": [
       "org.pokesplash.hunt.fabric.HuntFabric"
@@ -20,6 +19,7 @@
   "depends": {
     "fabricloader": ">=0.14.22",
     "minecraft": "=1.21.1",
-    "cobblemon":">=1.8.0"
+    "fabric-api": "*",
+    "cobblemon": ">=1.8.4 <1.9.0-"
   }
 }

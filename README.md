@@ -85,7 +85,7 @@ A command that contains `{player}` is skipped, with a warning in the log, if the
   - `config.json` broken, unreadable or missing **on `/hunt reload`**: the previous config stays in use, and the admin sees the reason in chat and in the log.
   - `lang.json` broken or unreadable: the default texts are used at startup and the previous texts on reload. Rewards are not affected.
   - A missing `config.json` or `lang.json` is only generated with the defaults at startup.
-  - Older `config.json`/`lang.json` files are upgraded in place, keeping your values and texts. The original is kept as `*.bak.1`. A `config.json` that only lacks `"version"` keeps its economy and currency; only a real 1.2.x file (with `impactorCurrencyName` and no `economy`) is migrated to Impactor.
+  - Older `config.json`/`lang.json` files are upgraded in place, keeping your values and texts. The original is kept as `*.bak.1`. A `config.json` that only lacks `"version"` keeps its economy and currency. Since 1.3.9 a config from Hunt 1.2.x (with `impactorCurrencyName` and no `economy`) is no longer migrated: Hunt pauses with an error that says so and the file is left alone. Replace `impactorCurrencyName` with `"economy": "IMPACTOR"` and `"currencyName"`, then restart or `/hunt reload`.
 - **Config checks:** `config.json` is also checked for values that make no sense. All problems are listed at once.
   - **Errors** are treated like a broken file (paused at startup, previous config on reload): a missing or `null` `economy`, `rarity`, `rewards` or `customPrices`; a missing reward tier (`rewards.common`, `uncommon`, `rare`, `ultraRare`) or its `price`; a negative, `NaN` or infinite price (0 is allowed); `huntDuration` or `huntAmount` below 1; a negative rarity weight or all weights 0; a `customPrices` entry without `species` or `reward` (or without `reward.price`); an unknown `economy`; an empty `currencyName` when it is used (Blanket, or Impactor with `useImpactorDefaultCurrency: false`).
   - **Warnings** use a safe value and Hunt keeps running: `huntAmount` above 28 (28 is used), a negative `bufferDuration` (0), missing `commands` (none run), empty entries in `commands` or `blacklist` (ignored), a missing `matchProperties` or `blacklist` (defaults), a `customPrices` species and form listed twice (the first is used), an empty `packIconItem` (the default), a missing `version`, and species or forms in `customPrices` or `blacklist` that Cobblemon doesn't know (the entry does nothing, usually a typo).
@@ -96,11 +96,12 @@ A command that contains `{player}` is skipped, with a warning in the log, if the
 
 ## Installation
 
-This mod can be ran on both [Fabric](https://fabricmc.net/) and [Forge](https://files.minecraftforge.net/net/minecraftforge/forge/). It has a few dependencies:
+Hunt is a server-side [Fabric](https://fabricmc.net/) mod for Minecraft 1.21.1 (dedicated servers only, it doesn't load in singleplayer). The NeoForge build was dropped in 1.3.9. It needs:
 
-- [Cobblemon](https://modrinth.com/mod/cobblemon)
-- [Impactor](https://modrinth.com/mod/impactor)
-- [Gooeylibs](https://github.com/NickImpact/GooeyLibs)
+- [Fabric API](https://modrinth.com/mod/fabric-api)
+- [Cobblemon](https://modrinth.com/mod/cobblemon) 1.8.4 or a later 1.8.x (1.9 is refused until Hunt is checked against it)
+- An economy: [Impactor](https://modrinth.com/mod/impactor) (default), Pebbles or Blanket, see `economy` in `config.json`
+- [GooeyLibs](https://github.com/NickImpact/GooeyLibs) is bundled in the jar
 
 
 ## Screenshots

@@ -23,6 +23,9 @@ public final class ConfigValidator {
 	/** Highest number of hunts the GUI can show. */
 	public static final int MAX_HUNT_AMOUNT = 28;
 	static final String DEFAULT_PACK_ICON_ITEM = "minecraft:gray_dye";
+	static final String LEGACY_FORMAT = "\"economy\" is missing: this looks like a config from Hunt 1.2.x"
+			+ " (it has \"impactorCurrencyName\"), which is no longer migrated. Add \"economy\" and \"currencyName\""
+			+ " (see the README)";
 
 	private ConfigValidator() {
 	}
@@ -38,20 +41,22 @@ public final class ConfigValidator {
 	 * Checks the config and replaces small problems with safe values.
 	 * @param cfg the config parsed from root.
 	 * @param root the JSON the config was parsed from, to tell a missing key from a default value.
-	 * @param legacy the file is in the 1.2.x format, which has no economy key.
 	 */
-	static Result validate(Config cfg, JsonObject root, boolean legacy) {
+	static Result validate(Config cfg, JsonObject root) {
 		List<String> errors = new ArrayList<>();
 		List<String> warnings = new ArrayList<>();
 
 		// Sections that decide what is paid: a missing key would silently give the default rewards.
-		if (!legacy) {
-			JsonElement economy = root.get("economy");
-			if (isMissing(economy)) {
+		JsonElement economy = root.get("economy");
+		if (isMissing(economy)) {
+			if (root.has("impactorCurrencyName")) {
+				// Hunt 1.2.x had impactorCurrencyName instead of economy and currencyName. It's no longer migrated.
+				errors.add(LEGACY_FORMAT);
+			} else {
 				errors.add(missing("economy"));
-			} else if (cfg.getEconomy() == null) {
-				errors.add("economy must be one of " + Arrays.toString(Economy.values()) + " (is " + economy + ")");
 			}
+		} else if (cfg.getEconomy() == null) {
+			errors.add("economy must be one of " + Arrays.toString(Economy.values()) + " (is " + economy + ")");
 		}
 		boolean rarityOk = requirePresent(root, "rarity", errors);
 		boolean rewardsOk = requirePresent(root, "rewards", errors);
