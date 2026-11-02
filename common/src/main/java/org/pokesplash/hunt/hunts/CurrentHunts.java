@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -37,7 +36,7 @@ public class CurrentHunts {
 		}
 
 		while (hunts.size() < Hunt.config.getHuntAmount()) {
-			if (addHunt() == null) {
+			if (addHunt(null) == null) {
 				break; // No more species available.
 			}
 		}
@@ -54,9 +53,11 @@ public class CurrentHunts {
 
 	/**
 	 * Adds a new hunt to the current hunts.
+	 * @param excludedKey key of a target that shouldn't be picked if anything else is left (the hunt that was
+	 *                    just completed or ended), or null.
 	 * @return the new hunt, or null if the hunt limit is reached or no species are available.
 	 */
-	public SingleHunt addHunt() {
+	public SingleHunt addHunt(String excludedKey) {
 		// If the maximum hunt amount is reached, don't add another.
 		if (hunts.size() >= Hunt.config.getHuntAmount()) {
 			return null;
@@ -64,18 +65,18 @@ public class CurrentHunts {
 
 		// Species and forms already being hunted can't be picked again.
 		Set<String> taken = new HashSet<>(targets.values());
+		ThreadLocalRandom random = ThreadLocalRandom.current();
 
-		Bucket bucket = Hunt.config.getRarity().getRandomRarity(b -> hasAvailableTarget(b, taken));
-		if (bucket == null) {
+		TargetChooser.Choice<HuntTarget> choice = TargetChooser.choose(
+				predicate -> Hunt.config.getRarity().getRandomRarity(predicate, random),
+				Hunt.spawnRates::getEligibleTargets, HuntTarget::key, taken, excludedKey, random);
+		if (choice == null) {
 			Hunt.LOGGER.warn("Could not create a new hunt: no eligible species are left. "
 					+ "Check the blacklist and rarity settings.");
 			return null;
 		}
-
-		List<HuntTarget> candidates = Hunt.spawnRates.getEligibleTargets(bucket).stream()
-				.filter(t -> !taken.contains(t.key()))
-				.toList();
-		HuntTarget chosen = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+		HuntTarget chosen = choice.target();
+		Bucket bucket = choice.bucket();
 
 		SingleHunt hunt = new SingleHunt(owner, chosen, bucket);
 
@@ -134,17 +135,11 @@ public class CurrentHunts {
 		targets.put(hunt.getId(), keyOf(hunt));
 	}
 
-	private static String keyOf(SingleHunt hunt) {
+	/**
+	 * @return the target key (species and form) of a hunt.
+	 */
+	public static String keyOf(SingleHunt hunt) {
 		return HuntTarget.key(hunt.getPokemon().getSpecies(), hunt.getPokemon().getForm());
-	}
-
-	private static boolean hasAvailableTarget(Bucket bucket, Set<String> taken) {
-		for (HuntTarget target : Hunt.spawnRates.getEligibleTargets(bucket)) {
-			if (!taken.contains(target.key())) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private ServerPlayer getOnlineOwner() {
@@ -193,7 +188,7 @@ public class CurrentHunts {
 		SingleHunt oldHunt = removeHunt(id, broadcast);
 
 		if (oldHunt != null) {
-			return new ReplacedHunt(oldHunt, addHunt());
+			return new ReplacedHunt(oldHunt, addHunt(keyOf(oldHunt)));
 		}
 		return null;
 	}

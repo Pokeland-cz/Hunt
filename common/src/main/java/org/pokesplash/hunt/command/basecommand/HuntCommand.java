@@ -89,11 +89,13 @@ public class HuntCommand extends BaseCommand {
 			Style red = createStyle("red");
 			Style yellow = createStyle("yellow");
 
+			// With matchProperties.shiny only a shiny catch completes a hunt, so the hunts are shown shiny.
+			boolean isShiny = Hunt.config.getMatchProperties().isShiny();
+
 			List<Button> hunts = new ArrayList<>();
 			for (SingleHunt hunt : Hunt.getHuntsFor(sender.getUUID()).getHuntValues()) {
 				List<Component> lore = new ArrayList<>();
-
-				boolean isShiny = hunt.getPokemon().getShiny();
+				hunt.getPokemon().setShiny(isShiny);
 
 				MutableComponent title = hunt.getPokemon().getSpecies().getTranslatedName().setStyle(isShiny ? yellow : aqua);
 
@@ -170,9 +172,10 @@ public class HuntCommand extends BaseCommand {
 
 			UIManager.openUIForcefully(sender, page);
 		} catch (Exception e) {
-			sender.sendSystemMessage(Component.literal("§cSomething went wrong. Error: " + e.getMessage() +
-					".\n Check the console for more details."));
-			e.printStackTrace();
+			// The details go to the log only, players get a plain message (HUNT-027).
+			Hunt.LOGGER.error("Could not open the hunt menu for " + sender.getUUID(), e);
+			sender.sendSystemMessage(Component.literal(
+					"§5[Hunt] §cThe hunts could not be shown. Please contact an admin."));
 		}
 
 		return 1;

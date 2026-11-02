@@ -1,5 +1,6 @@
 package org.pokesplash.hunt.config;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -9,6 +10,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.enumeration.Economy;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -206,5 +208,50 @@ class ConfigParseTest {
 		String lenient = "{\n// edited by hand\n" + json.substring(1).replace("\"huntAmount\"", "huntAmount");
 		Config config = assertDoesNotThrow(() -> Config.parse(lenient));
 		assertEquals(7, config.getHuntAmount());
+	}
+
+	/** HUNT-022: added in 1.3.10, an older file gets the defaults and is rewritten so the key is visible. */
+	@Test
+	void missingExcludedLabelsGetDefaultsAndMarkUpgraded() throws ConfigLoadException {
+		Config config = Config.parse(defaultJsonWith(root -> root.remove("excludedLabels")));
+		assertTrue(config.isUpgraded());
+		assertEquals(List.of("legendary", "mythical", "ultra_beast", "paradox"), config.getExcludedLabels());
+		assertTrue(config.getWarnings().isEmpty(), config.getWarnings().toString());
+	}
+
+	@Test
+	void nullExcludedLabelsGetDefaultsWithWarning() throws ConfigLoadException {
+		Config config = Config.parse(defaultJsonWith(root -> root.add("excludedLabels", JsonNull.INSTANCE)));
+		assertEquals(Config.DEFAULT_EXCLUDED_LABELS, config.getExcludedLabels());
+		assertTrue(config.getWarnings().stream().anyMatch(w -> w.contains("excludedLabels")),
+				config.getWarnings().toString());
+	}
+
+	@Test
+	void excludedLabelsAreTrimmedAndLowerCase() throws ConfigLoadException {
+		Config config = Config.parse(defaultJsonWith(root -> {
+			JsonArray labels = new JsonArray();
+			labels.add(" Legendary ");
+			labels.add("");
+			labels.add("ULTRA_BEAST");
+			root.add("excludedLabels", labels);
+		}));
+		assertEquals(List.of("legendary", "ultra_beast"), config.getExcludedLabels());
+		assertTrue(config.getWarnings().stream().anyMatch(w -> w.contains("excludedLabels")),
+				config.getWarnings().toString());
+	}
+
+	@Test
+	void emptyExcludedLabelsAreAllowed() throws ConfigLoadException {
+		Config config = Config.parse(defaultJsonWith(root -> root.add("excludedLabels", new JsonArray())));
+		assertEquals(List.of(), config.getExcludedLabels());
+		assertTrue(config.getWarnings().isEmpty(), config.getWarnings().toString());
+		assertFalse(config.isUpgraded());
+	}
+
+	@Test
+	void defaultConfigExcludesLegendariesAndCo() throws ConfigLoadException {
+		assertEquals(List.of("legendary", "mythical", "ultra_beast", "paradox"),
+				Config.parse(defaultJson()).getExcludedLabels());
 	}
 }

@@ -112,11 +112,13 @@ public abstract class CaptureEvent {
 	 * @return false if the hunt was already gone.
 	 */
 	private static boolean claim(CurrentHunts currentHunts, UUID huntId, Completion completion) {
-		if (currentHunts.removeHunt(huntId, false) == null) {
+		SingleHunt removed = currentHunts.removeHunt(huntId, false);
+		if (removed == null) {
 			return false;
 		}
 		try {
-			currentHunts.addHunt();
+			// The completed species isn't hunted again right away (HUNT-026).
+			currentHunts.addHunt(CurrentHunts.keyOf(removed));
 		} catch (Exception ex) {
 			Hunt.LOGGER.error("Could not create a replacement hunt. Fix the config, then run /hunt reload "
 					+ "to top up the hunts. " + completion.describe(), ex);

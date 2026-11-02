@@ -341,6 +341,11 @@ public class Hunt
 				}
 			}
 		}
+		try {
+			broadcaster.flushDue();
+		} catch (Exception ex) {
+			LOGGER.error("Failed to send hunt broadcasts", ex);
+		}
 		long now = System.currentTimeMillis();
 		if (now - lastSave >= SAVE_INTERVAL_MS) {
 			lastSave = now;
@@ -354,6 +359,27 @@ public class Hunt
 			} catch (Exception ex) {
 				LOGGER.error("Failed to save hunt stats", ex);
 			}
+		}
+	}
+
+	/**
+	 * Called after a vanilla /reload. Cobblemon reloads its spawn pools then (species stay the same), so the
+	 * hunt targets are read again (HUNT-029). Running hunts are kept until they end; missing hunts are
+	 * topped up, e.g. if a datapack now adds species. Never throws.
+	 * @param success whether the reload worked.
+	 */
+	public static void onDataPackReload(boolean success) {
+		if (!success || !configLoaded) {
+			return;
+		}
+		try {
+			spawnRates.init();
+			if (loaded) {
+				fillHunts();
+			}
+			LOGGER.info("Datapacks reloaded, hunt targets updated.");
+		} catch (Exception ex) {
+			LOGGER.error("Could not update the hunt targets after /reload.", ex);
 		}
 	}
 

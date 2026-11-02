@@ -36,7 +36,7 @@ class PlaceholdersTest {
 			"Pokémon", "a b", "$0", "\\$1"})
 	void nameIsInsertedLiterally(String name) {
 		String filled = assertDoesNotThrow(
-				() -> Placeholders.fill("[{player}] give {player} diamond", name, UUID, null, -1));
+				() -> Placeholders.fill("[{player}] give {player} diamond", name, UUID, (String) null, -1));
 		assertEquals("[" + name + "] give " + name + " diamond", filled);
 	}
 
@@ -68,7 +68,7 @@ class PlaceholdersTest {
 	@Test
 	void uuidIsFilledIn() {
 		assertEquals("give " + UUID + " minecraft:diamond 1",
-				Placeholders.fill("give {uuid} minecraft:diamond 1", "@a", UUID, null, -1));
+				Placeholders.fill("give {uuid} minecraft:diamond 1", "@a", UUID, (String) null, -1));
 	}
 
 	@Test
@@ -91,7 +91,7 @@ class PlaceholdersTest {
 	@Test
 	void missingValuesLeavePlaceholders() {
 		assertEquals("{player} {uuid} {pokemon} {price}",
-				Placeholders.fill("{player} {uuid} {pokemon} {price}", null, null, null, -1));
+				Placeholders.fill("{player} {uuid} {pokemon} {price}", null, null, (String) null, -1));
 	}
 
 	@Test
@@ -102,18 +102,18 @@ class PlaceholdersTest {
 	@Test
 	void wholePricesHaveNoSeparators() {
 		assertAll(
-				() -> assertEquals("0", Placeholders.fill("{price}", null, null, null, 0)),
-				() -> assertEquals("100", Placeholders.fill("{price}", null, null, null, 100)),
-				() -> assertEquals("1000", Placeholders.fill("{price}", null, null, null, 1000)),
-				() -> assertEquals("1234567", Placeholders.fill("{price}", null, null, null, 1234567)));
+				() -> assertEquals("0", Placeholders.fill("{price}", null, null, (String) null, 0)),
+				() -> assertEquals("100", Placeholders.fill("{price}", null, null, (String) null, 100)),
+				() -> assertEquals("1000", Placeholders.fill("{price}", null, null, (String) null, 1000)),
+				() -> assertEquals("1234567", Placeholders.fill("{price}", null, null, (String) null, 1234567)));
 	}
 
 	@Test
 	void decimalPricesHaveAtMostTwoDigits() {
 		assertAll(
-				() -> assertEquals("1.5", Placeholders.fill("{price}", null, null, null, 1.5)),
-				() -> assertEquals("1.26", Placeholders.fill("{price}", null, null, null, 1.257)),
-				() -> assertEquals("2", Placeholders.fill("{price}", null, null, null, 2.001)));
+				() -> assertEquals("1.5", Placeholders.fill("{price}", null, null, (String) null, 1.5)),
+				() -> assertEquals("1.26", Placeholders.fill("{price}", null, null, (String) null, 1.257)),
+				() -> assertEquals("2", Placeholders.fill("{price}", null, null, (String) null, 2.001)));
 	}
 
 	/**
@@ -124,8 +124,41 @@ class PlaceholdersTest {
 	@ValueSource(strings = {"cs-CZ", "de-DE", "fr-FR", "ar-EG", "hi-IN-u-nu-deva"})
 	void decimalSeparatorIsAlwaysDot(String locale) {
 		Locale.setDefault(Locale.forLanguageTag(locale));
-		assertEquals("1.5", Placeholders.fill("{price}", null, null, null, 1.5));
-		assertEquals("1234567.25", Placeholders.fill("{price}", null, null, null, 1234567.25));
+		assertEquals("1.5", Placeholders.fill("{price}", null, null, (String) null, 1.5));
+		assertEquals("1234567.25", Placeholders.fill("{price}", null, null, (String) null, 1234567.25));
 		assertEquals("500", Placeholders.formatPrice(500));
+	}
+
+	// HUNT-020: species id and form for commands, inserted literally like the other values.
+	@Test
+	void speciesIdAndFormAreFilledIn() {
+		Placeholders.PokemonText vulpix = new Placeholders.PokemonText("Vulpix the Peppy", "vulpix", "alola");
+		assertEquals("pokegive abc vulpix form=alola (Vulpix the Peppy)",
+				Placeholders.fill("pokegive {uuid} {species_id} form={form} ({pokemon})", "Ash", "abc", vulpix, -1));
+	}
+
+	@Test
+	void speciesIdAndFormStayWithoutValues() {
+		assertAll(
+				() -> assertEquals("{species_id} {form} Pikachu",
+						Placeholders.fill("{species_id} {form} {pokemon}", null, null, "Pikachu", -1)),
+				() -> assertEquals("{species_id} {form} {pokemon}",
+						Placeholders.fill("{species_id} {form} {pokemon}", null, null,
+								(Placeholders.PokemonText) null, -1)),
+				() -> assertEquals("x {form}", Placeholders.fill("{species_id} {form}", null, null,
+						new Placeholders.PokemonText(null, "x", null), -1)));
+	}
+
+	@Test
+	void speciesIdValueIsLiteral() {
+		assertEquals("a$1\\ b", Placeholders.fill("{species_id} {form}", null, null,
+				new Placeholders.PokemonText(null, "a$1\\", "b"), -1));
+	}
+
+	@Test
+	void speciesIdFollowsCobblemonsFormat() {
+		assertAll(
+				() -> assertEquals("mrmime", Placeholders.speciesId("cobblemon", "mrmime")),
+				() -> assertEquals("othermod:foo", Placeholders.speciesId("othermod", "foo")));
 	}
 }

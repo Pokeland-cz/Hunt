@@ -12,6 +12,17 @@ public final class Placeholders {
 	public static final String UUID = "{uuid}";
 	public static final String POKEMON = "{pokemon}";
 	public static final String PRICE = "{price}";
+	public static final String SPECIES_ID = "{species_id}";
+	public static final String FORM = "{form}";
+
+	/**
+	 * What the Pokemon placeholders are filled with.
+	 * @param name the display name for {pokemon}, or null to leave it as it is.
+	 * @param speciesId the species id for {species_id} (see {@link #speciesId}), or null to leave it as it is.
+	 * @param form the form id for {form}, e.g. "alola" or "normal", or null to leave it as it is.
+	 */
+	public record PokemonText(String name, String speciesId, String form) {
+	}
 
 	private Placeholders() {
 	}
@@ -27,6 +38,15 @@ public final class Placeholders {
 	 * @return the filled in text, or an empty string if the template is null.
 	 */
 	public static String fill(String template, String playerName, String uuid, String pokemonName, double price) {
+		return fill(template, playerName, uuid, new PokemonText(pokemonName, null, null), price);
+	}
+
+	/**
+	 * Fills in the {player}, {uuid}, {pokemon}, {species_id}, {form} and {price} placeholders. Values are
+	 * inserted literally.
+	 * @param pokemon the Pokemon's texts, or null to leave the Pokemon placeholders as they are.
+	 */
+	public static String fill(String template, String playerName, String uuid, PokemonText pokemon, double price) {
 		if (template == null) {
 			return "";
 		}
@@ -37,8 +57,16 @@ public final class Placeholders {
 			result = result.replace(UUID, String.valueOf(uuid));
 		}
 
-		if (pokemonName != null) {
-			result = result.replace(POKEMON, pokemonName);
+		if (pokemon != null) {
+			if (pokemon.name() != null) {
+				result = result.replace(POKEMON, pokemon.name());
+			}
+			if (pokemon.speciesId() != null) {
+				result = result.replace(SPECIES_ID, pokemon.speciesId());
+			}
+			if (pokemon.form() != null) {
+				result = result.replace(FORM, pokemon.form());
+			}
 		}
 
 		if (price != -1) {
@@ -55,6 +83,14 @@ public final class Placeholders {
 	public static String formatPrice(double price) {
 		// DecimalFormat isn't thread-safe, so a new one is made each time.
 		return new DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.ROOT)).format(price);
+	}
+
+	/**
+	 * The species id as Cobblemon writes it in Pokemon properties (e.g. /pokegive): just the path for
+	 * Cobblemon's own species ("mrmime"), the full id for species from other mods ("othermod:foo").
+	 */
+	public static String speciesId(String namespace, String path) {
+		return "cobblemon".equals(namespace) ? path : namespace + ":" + path;
 	}
 
 	/**

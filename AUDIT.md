@@ -21,7 +21,7 @@ Značení: **[ověřeno]** = viděno v kódu Hunt nebo ve zdrojácích/bytecode 
 | 6 – validace configu (HUNT-008, 030, 031, 032) | ✅ **Hotovo, otestováno a nasazeno (1.3.7)** | Nový `ConfigValidator`: neplatné hodnoty a chybějící sekce jsou chyba (start → pauza, reload → starý config), drobnosti jsou varování s bezpečnou hodnotou, v logu i žlutě v chatu při `/hunt reload`. Neznámé druhy a formy v `customPrices` a `blacklist` → varování. Config bez `version` si nechá ekonomiku i měnu. `{price}` vždy s tečkou. 226 testů, mutační kontrola 10 z 10, build zelený, `-Xlint:all` bez nových varování (2026-11-02). Test na serveru prošel, **na produkci nasazeno 2026-11-02**. Se stejným releasem: kompilace proti Cobblemonu 1.8.4, Fabric Loaderu 0.20.1 a Fabric API 0.116.17 a opravy buildu (15.6). Viz kapitola 15. |
 | 7 – admin příkazy (HUNT-013, 028) | ✅ **Hotovo, otestováno a nasazeno (1.3.8)** | `/hunt admin save`, `/hunt admin stats reset <jméno\|uuid> [confirm]`, `/hunt admin stats resetall [confirm]` (potvrzení do 30 s stejným zdrojem, snapshot před resetem všech, WARN se smazaným záznamem). `/hunt stats` bere UUID a u nejednoznačného jména vypíše shody s UUID. 271 testů, mutační kontrola 11 z 11, build zelený, `-Xlint:all` bez nových varování (2026-11-02). Test na serveru (16.5/2 a–g) prošel, **na produkci nasazeno 2026-11-02**. Viz kapitola 16. |
 | 8 – úklid (HUNT-023, 024) | ✅ **Hotovo, otestováno a nasazeno (1.3.9)** | Smazané `old/` i migrace configu 1.2.x (takový config teď Hunt pozastaví s jasnou hláškou), `DebugCommand`, `Settings.java` a modul `forge/`. `fabric.mod.json`: `cobblemon >=1.8.4 <1.9.0-`, `fabric-api`, `environment: server`, bez `icon.png`. Shadow `com.gradleup.shadow` 8.3.11, Loom 1.10.455 a architectury-plugin 3.4.164 pinnuté, Impactor API 5.3.0, `gradlew` +x. 270 testů, mutační kontrola 1 z 1, `--warning-mode all` bez varování, `-Xlint:all` bez varování (2026-11-02). Test na serveru prošel, **na produkci nasazeno 2026-11-02**. Viz kapitola 17. |
-| 9 | ⬜ Neprovedeno | |
+| 9 – kosmetika a drobnosti (HUNT-018, 020, 021, 022, 026, 027, 029) | ✅ **Hotovo, otestováno a nasazeno (1.3.10)** | Broadcasty „začal/skončil“ se v okně `bufferDuration` slučují do jedné zprávy, žádná se nezahodí. `CAPTURED` jde hned. Nové placeholdery `{species_id}` a `{form}`. `matchProperties.shiny=true` = hunt splní jen shiny úlovek (rozhodnutí provozovatele). Nový `excludedLabels` (legendary, mythical, ultra_beast, paradox). Splněný druh se hned znovu nevylosuje. GUI ukazuje hráči obecnou hlášku. `/reload` obnoví cíle. 301 testů, mutační kontrola 10 z 10, `-Xlint:all` a `--warning-mode all` bez nových varování (2026-11-03). Test na serveru prošel, **na produkci nasazeno 2026-11-03**. Viz kapitola 18. |
 
 ---
 
@@ -244,18 +244,18 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 | ID | Oblast | Kde | Popis a scénář | Oprava | Náročnost |
 |---|---|---|---|---|---|
 | ✅ HUNT-017 (opraveno v 1.3.5, krok 5) | E | `util/BaseCommand.java:59-62` vs README | `/hunt` (root) **nemá** `requires`, alias `/hunts` vyžaduje `hunt.base`. README tvrdí, že `/hunt` vyžaduje `hunt.base`. Odebrání `hunt.base` v LuckPerms tedy nic nezakáže. [ověřeno] | Sjednotit a opravit README. | S |
-| HUNT-018 | A | `broadcast/Broadcaster.java:131-135` | Zprávy v okně bufferu se **zahazují**, nefrontují. Všechny globální hunty vznikají najednou, takže i expirují najednou a oznámí se jen 1 ze 7 nových huntů. Druhé chycení do 5 s se neoznámí. [ověřeno] | Agregovat zprávy („Nové hunty: A, B, C“) nebo rozprostřít `endtime`. | S |
+| ✅ HUNT-018 (opraveno v 1.3.10, krok 9) | A | `broadcast/Broadcaster.java:131-135` | Zprávy v okně bufferu se **zahazují**, nefrontují. Všechny globální hunty vznikají najednou, takže i expirují najednou a oznámí se jen 1 ze 7 nových huntů. Druhé chycení do 5 s se neoznámí. [ověřeno] | Agregovat zprávy („Nové hunty: A, B, C“) nebo rozprostřít `endtime`. **1.3.10:** sloučení jmen do stávajícího textu, `CAPTURED` hned (18.1). | S |
 | HUNT-019 | A | `hunts/CurrentHunts.java:169-175` | Individuální režim ignoruje flag `broadcast`: hráč po vlastním splnění i po `/hunt refresh` dostane „hunt skončil“. [ověřeno] | Respektovat flag. | S |
-| HUNT-020 | A | `util/Utils.java:266` | `{pokemon}` v příkazech = přeložené jméno, případně s titulem marku (`getDisplayName(true)`): „Mr. Mime“, „Farfetch'd“, „Vulpix the Peppy“. Mezery posunou argumenty příkazu. [ověřeno] | Přidat `{species_id}` a `{form}`. | S |
-| HUNT-021 | A | `hunts/SingleHunt.java:285-287` | Hunt Pokémon nikdy není shiny, takže `matchProperties.shiny=true` znamená „shiny se NEpočítá“. Matoucí. [ověřeno] | Přejmenovat nebo zdokumentovat, případně možnost „shiny bonus“. | S |
-| HUNT-022 | A | `hunts/SpawnRates.java:159-161` | Vyřazuje se jen label `legendary`. `mythical`, `ultra_beast` a `paradox` projdou, pokud je nějaký datapack nebo addon dá do world poolu. [ověřeno, výskyt je otázka] | Konfigurovatelný seznam vyřazených labelů. | S |
+| ✅ HUNT-020 (opraveno v 1.3.10, krok 9) | A | `util/Utils.java:266` | `{pokemon}` v příkazech = přeložené jméno, případně s titulem marku (`getDisplayName(true)`): „Mr. Mime“, „Farfetch'd“, „Vulpix the Peppy“. Mezery posunou argumenty příkazu. [ověřeno] | Přidat `{species_id}` a `{form}`. **1.3.10:** přidáno, `{pokemon}` zůstává. | S |
+| ✅ HUNT-021 (opraveno v 1.3.10, krok 9) | A | `hunts/SingleHunt.java:285-287` | Hunt Pokémon nikdy není shiny, takže `matchProperties.shiny=true` znamená „shiny se NEpočítá“. Matoucí. [ověřeno] | Přejmenovat nebo zdokumentovat, případně možnost „shiny bonus“. **1.3.10 (rozhodnutí provozovatele):** `shiny=true` = splní jen shiny úlovek, GUI ukazuje hunty jako shiny. | S |
+| ✅ HUNT-022 (opraveno v 1.3.10, krok 9) | A | `hunts/SpawnRates.java:159-161` | Vyřazuje se jen label `legendary`. `mythical`, `ultra_beast` a `paradox` projdou, pokud je nějaký datapack nebo addon dá do world poolu. [ověřeno, výskyt je otázka] | Konfigurovatelný seznam vyřazených labelů. **1.3.10:** `excludedLabels`, výchozí legendary, mythical, ultra_beast, paradox. Výchozí world pool Cobblemonu 1.8.4 žádný z nich nemá (ověřeno v datech). | S |
 | ✅ HUNT-023 (opraveno v 1.3.9, krok 8) | F | `fabric.mod.json`, `build.gradle` | Produkce běží na 1.8.4, build kompiluje proti 1.8.0. `cobblemon >=1.8.0` bez horní hranice (1.8 už jednou rozbila spawning API, viz komentář `SpawnRates.java:47-51`). Chybí `fabric-api` v `depends`, `icon.png` neexistuje, `environment: "*"` u server-only módu. SNAPSHOT závislosti, Gradle deprecations (kap. 3), `gradlew` bez +x. [ověřeno] | `cobblemon: ">=1.8.0 <1.9"`, doplnit depends, pinout verze. **Krok 8 (1.3.9):** vše kromě GooeyLibs, která zůstává `3.1.0-1.21.1-SNAPSHOT` (viz 17.1). | S |
 | ✅ HUNT-024 (opraveno v 1.3.9, krok 8) | F | `command/subcommand/DebugCommand.java`, `old/*`, `Settings.java`, `forge/*`, `util/Utils.java:44-181` | Mrtvý nebo matoucí kód: neregistrovaný Debug (navíc hlásí slot −1), prázdný `Settings.java` v rootu. `readFileAsync`/`writeFileAsync` jsou ve skutečnosti synchronní (`join`, `get`) a `writeFileAsync` nekontroluje částečný zápis. NeoForge modul na Fabric serveru nikdo netestuje. [ověřeno] | Smazat, sjednotit IO na `FileStore`. **Krok 2 (1.3.3):** `Utils` IO metody a mrtvé `LangOld.init` / `ConfigOld.write` jsou odstraněné, veškeré IO jde přes `FileStore`. `LangOld` už nikdo nepoužívá. **Krok 8 (1.3.9):** `old/`, `DebugCommand`, `Settings.java` a `forge/` smazané. | S |
 | HUNT-025 | B/D | `broadcast/Broadcaster.java:20`, `hunts/HuntManager.java:66-71` | `playerBuffers` roste do reloadu (malý leak, 1 záznam na hráče). `checkOnlinePlayers` každou sekundu kopíruje množinu **všech** známých UUID a hledá je mezi online hráči. Iterovat stačí online hráče. [ověřeno] | Iterovat `getPlayerList().getPlayers()`, čistit při disconnectu. | S |
-| HUNT-026 | A | `hunts/CurrentHunts.java:66, 192-197` | `taken` se počítá až po odebrání splněného huntu, takže stejný druh může být hned znovu vylosován. Hráč na spawnu daného druhu dostane šanci 1/|bucket| na okamžité další splnění. [ověřeno, malý dopad] | Vyloučit právě splněný cíl. | S |
-| HUNT-027 | A/F | `command/basecommand/HuntCommand.java:127,161-163` | GUI je statické (čas se neaktualizuje). Hráči se zobrazuje `e.getMessage()` (interní detaily). GooeyLibs `GooeyContainer` přepisuje `clicked()` i `quickMoveStack()` a volá `patchDesyncs` [ověřeno v bytecode], takže vytažení itemů je nepravděpodobné a GUI nemá akce. **Doporučuji ruční test** (shift-click, čísla 1–9, drag, double-click, Q, zavření při lagu). | Generická hláška hráči. | S |
+| ✅ HUNT-026 (opraveno v 1.3.10, krok 9) | A | `hunts/CurrentHunts.java:66, 192-197` | `taken` se počítá až po odebrání splněného huntu, takže stejný druh může být hned znovu vylosován. Hráč na spawnu daného druhu dostane šanci 1/|bucket| na okamžité další splnění. [ověřeno, malý dopad] | Vyloučit právě splněný cíl. **1.3.10:** vyloučí se splněný i vypršelý cíl, pokud zbývá jiný (`TargetChooser`). | S |
+| ✅ HUNT-027 (opraveno v 1.3.10, krok 9) | A/F | `command/basecommand/HuntCommand.java:127,161-163` | GUI je statické (čas se neaktualizuje). Hráči se zobrazuje `e.getMessage()` (interní detaily). GooeyLibs `GooeyContainer` přepisuje `clicked()` i `quickMoveStack()` a volá `patchDesyncs` [ověřeno v bytecode], takže vytažení itemů je nepravděpodobné a GUI nemá akce. **Doporučuji ruční test** (shift-click, čísla 1–9, drag, double-click, Q, zavření při lagu). | Generická hláška hráči. **1.3.10:** obecná hláška, detail do logu (`LOGGER.error`). Čas v GUI zůstává statický. | S |
 | ✅ HUNT-028 (opraveno v 1.3.8, krok 7) | E | `stats/HuntStats.java:99-103` | `/hunt stats <jméno>` vrací první shodu bez ohledu na velikost písmen. Offline mode umožní `Steve` i `steve` jako dva účty se dvěma UUID. [ověřeno] | Preferovat přesnou shodu, umožnit zadat UUID. | S |
-| HUNT-029 | B | `Hunt.java:86-91` | Vanilla `/reload` (datapacky) neobnoví `SpawnRates`. Hunty drží staré `Species` objekty (matching jede přes jména, takže funkčně OK). [ověřeno] | Hook na `END_DATA_PACK_RELOAD`. | S |
+| ✅ HUNT-029 (opraveno v 1.3.10, krok 9) | B | `Hunt.java:86-91` | Vanilla `/reload` (datapacky) neobnoví `SpawnRates`. Hunty drží staré `Species` objekty (matching jede přes jména, takže funkčně OK). [ověřeno] | Hook na `END_DATA_PACK_RELOAD`. **1.3.10:** hook přidán. Cobblemon `/reload` obnoví spawn pooly, druhy ne (`PokemonSpecies` není reloadovatelný, ověřeno), takže staré `Species` nehrozí. | S |
 | ✅ HUNT-030 (opraveno v 1.3.7) | A | `util/Placeholders.java:43` (dříve `Utils.formatPlaceholders`) | `{price}` formátuje `DecimalFormat("0.##")` podle locale JVM. Na serveru s `cs_CZ` (nebo jiným locale s desetinnou čárkou) se cena `1.5` vypíše jako `1,5` a reward příkaz typu `eco give {uuid} {price}` ji nemusí přijmout. Celé ceny se to netýká (bez oddělovače tisíců). [ověřeno testem `decimalSeparatorFollowsServerLocale`, nalezeno v kroku 3] | `DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.ROOT))`, aspoň pro příkazy. Krok 6 nebo 9. | S |
 | ✅ HUNT-033 (opraveno v 1.3.6) | E/F | `util/Permissions.java`, README | `CobblemonPermission` přidává k uzlu prefix `cobblemon.` (`getLiteral()` = `"cobblemon." + node`, ověřeno v bytecode 1.8.0 i 1.8.4 a testem). LuckPerms tedy vidí `cobblemon.hunt.reload`, ne `hunt.reload`, jak tvrdilo README. Uzly nastavené podle README (`hunt.*`) nic neudělají: povolení se neuplatní (platí jen OP level) a zákaz taky ne. [ověřeno testem `permissionNodesHaveTheCobblemonPrefix`, nalezeno v kroku 5] | **Rozhodnutí provozovatele (2026-11-02):** přejít na `hunt.*` (v LuckPerms nejsou žádné uzly Hunt nastavené). Opraveno v 1.3.6 přes vlastní `HuntPermission` bez prefixu, viz kapitola 14. | S |
 | ✅ HUNT-031 (opraveno v 1.3.7) | E | `config/Config.java:82-87` | `requireSection` chytí jen explicitní `null`. Chybějící klíč sekce (např. smazané celé `"rewards"`) Gson doplní z no-arg konstruktoru, takže platí **výchozí odměny** (100–1000 a diamanty) bez varování. [ověřeno testem `missingSectionGetsDefaults`, nalezeno v kroku 3] | Ve validaci (krok 6) vyžadovat přítomnost klíčů `economy`, `rarity`, `rewards`, `customPrices`, nebo aspoň WARN. | S |
@@ -404,7 +404,7 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 | 6 | ✅ **HOTOVO a nasazeno (1.3.7)** · **Validace configu** s jasnými hláškami (`huntDuration > 0`, `huntAmount 1–28`, váhy, `economy`, ceny, existence druhů v `customPrices` a `blacklist`) | 008 | M |
 | 7 | ✅ **HOTOVO a nasazeno (1.3.8)** · **Admin příkazy:** reset stats, `save`, zobrazení stats podle UUID | 013, 028 | S |
 | 8 | ✅ **HOTOVO a nasazeno (1.3.9)** · **Úklid:** `old/` (po ověření, že nikdo nemá config < 1.2.3), `DebugCommand`, `Settings.java`, Utils IO, `fabric.mod.json` (`cobblemon <1.9`, `fabric-api`), Gradle deprecations, `gradlew +x`; rozhodnout o `forge/` | 023, 024 | S |
-| 9 | **Kosmetika a drobnosti:** agregované broadcasty, `{species_id}`, labely mythical/UB/paradox, datapack reload hook, GUI hláška, vyloučení právě splněného cíle | 018, 020, 021, 022, 026, 027, 029 | S |
+| 9 | ✅ **HOTOVO a nasazeno (1.3.10)** · **Kosmetika a drobnosti:** agregované broadcasty, `{species_id}`, labely mythical/UB/paradox, datapack reload hook, GUI hláška, vyloučení právě splněného cíle | 018, 020, 021, 022, 026, 027, 029 | S |
 | — | **Odloženo, dokud se nezapne `individualHunts`:** HUNT-005 (policy výplat), HUNT-006 (lehký model, prune, serializace mimo tick), HUNT-019, HUNT-025 | 005, 006, 019, 025 | M–L |
 | — | ~~**Podle výsledku testu na serveru:** HUNT-010 (původ Pokémona), HUNT-011 (Impactor `join()`)~~ **Odpovězeno 2026-11-02:** jen Cobblemon spawny a Impactor na JSON, oba nálezy sníženy na Nízká. Případně krok 8 (cache služby) a 9 (PokeSnack) | 010, 011 | S |
 
@@ -418,9 +418,9 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 2. ~~**Jen pokud ověření selže**~~ *(nebylo potřeba, ověření prošlo)* (hráč se jménem mimo `[A-Za-z0-9_]` se dostane na Cobblemon server): okamžitě odstranit `{player}` z `captureHuntBroadcast` v `lang.json` a z reward příkazů, pak `/hunt reload`. Odměny přes příkazy tím do hotfixu přestanou fungovat. Placeholder `{uuid}` (vanilla `give` UUID přijme) přidá až krok 0.
 3. **Kroky 0 a 1 jako jeden hotfix release.** ✅ Nasazeno 2026-11-02 (v 1.3.3 spolu s krokem 2). Po nasazení 1–2 dny sledovat `payouts.log`. Měna je převoditelná, takže log je jediný způsob, jak zpětně najít případné zneužití.
 4. Krok 2 (config) před další úpravou `config.json` na produkci. **Hotovo, otestováno a nasazeno v 1.3.3 (2026-11-02)** (kapitola 10).
-5. Kroky 3–4 (testy a `CompletionService`). ✅ **Hotovo, otestováno a nasazeno v 1.3.4 (2026-11-02)** (kapitoly 11 a 12). Krok 5 (oprávnění) ✅ **hotovo, otestováno a nasazeno v 1.3.5 (2026-11-02)** (kapitola 13). Krok 6 (validace configu) ✅ **hotovo, otestováno a nasazeno v 1.3.7 (2026-11-02)** (kapitola 15). Krok 7 (admin příkazy) ✅ **hotovo, otestováno a nasazeno v 1.3.8 (2026-11-02)** (kapitola 16). Krok 8 (úklid) ✅ **hotovo, otestováno a nasazeno v 1.3.9 (2026-11-02)** (kapitola 17). Dál krok 9.
+5. Kroky 3–4 (testy a `CompletionService`). ✅ **Hotovo, otestováno a nasazeno v 1.3.4 (2026-11-02)** (kapitoly 11 a 12). Krok 5 (oprávnění) ✅ **hotovo, otestováno a nasazeno v 1.3.5 (2026-11-02)** (kapitola 13). Krok 6 (validace configu) ✅ **hotovo, otestováno a nasazeno v 1.3.7 (2026-11-02)** (kapitola 15). Krok 7 (admin příkazy) ✅ **hotovo, otestováno a nasazeno v 1.3.8 (2026-11-02)** (kapitola 16). Krok 8 (úklid) ✅ **hotovo, otestováno a nasazeno v 1.3.9 (2026-11-02)** (kapitola 17). Krok 9 (kosmetika) ✅ **hotovo, otestováno a nasazeno v 1.3.10 (2026-11-03)** (kapitola 18). Všechny kroky 0–9 jsou hotové, zbývají jen odložené nálezy pro individuální režim (7.4).
 6. Kroky 7–9 průběžně.
-7. Ruční test GUI (HUNT-027). Test spawn zdrojů (HUNT-010) už není potřeba: podle provozovatele spawnuje divoké Pokémony jen Cobblemon (revize 3).
+7. ✅ Ruční test GUI (HUNT-027) proběhl jako součást testu 18.4 g. Test spawn zdrojů (HUNT-010) už není potřeba: podle provozovatele spawnuje divoké Pokémony jen Cobblemon (revize 3).
 
 ---
 
@@ -945,3 +945,67 @@ Před každým scénářem zálohovat `config/hunt/`.
 - Cobblemon 1.9 nebo 1.8.0–1.8.3: Fabric odmítne start serveru, dokud se Hunt neověří nebo nesrovná verze.
 - Shadow 8.3: obsah jaru ověřen v 17.2/2.
 - GooeyLibs dál SNAPSHOT: pokud ho repo smaže, build přestane jít. Řešení je přechod na release po ověření na 1.21.1.
+
+---
+
+## 18. Plán kroku 9: kosmetika a drobnosti (1.3.10) · ✅ HOTOVO, otestováno a nasazeno
+
+**Stav:** Změny A–Q z 18.2 jsou implementované. Build je zelený (301 testů), `-Xlint:all` i `--warning-mode all` bez nových varování a mutační kontrola zachytila 10 z 10 mutací (2026-11-03). **Test na serveru (18.4) proběhl a prošel a 1.3.10 je nasazená na produkci (2026-11-03, potvrzeno provozovatelem).**
+
+**Cíl:** HUNT-018, 020, 021, 022, 026, 027 a 029.
+**Rozhodnutí provozovatele (2026-11-02):** HUNT-018 slučovat jména do **stávajícího** textu z `lang.json` (lang se nemění). HUNT-021 `shiny=true` = **hunt splní jen shiny úlovek**.
+**Mimo rozsah:** individuální režim (HUNT-005, 006, 019, 025, `sendPlayerMessage` beze změny), živý čas v GUI, „shiny bonus“, HUNT-010 a 011. **Datové formáty se nemění** (`hunts.json` dál ukládá `shiny`). Návrat na 1.3.9 = výměna jaru (1.3.9 klíč `excludedLabels` ignoruje).
+
+### 18.1 Ověřeno v Cobblemonu 1.8.4 (zdrojáky a data z gradle cache)
+- `WORLD_SPAWN_POOL` je registrovaný s `reloadable = true`. Vanilla `/reload` ho obnoví přes Fabric reload listener (`ServerResourceReloader`), tedy před `END_DATA_PACK_RELOAD`.
+- `PokemonSpecies` je `reloadable = false` („species are not safe to reload“). Objekty `Species` v huntech proto po `/reload` nezastarají.
+- Výchozí world pool má 873 druhů a žádný nemá label `legendary`, `mythical`, `ultra_beast` ani `paradox`. Nový výchozí `excludedLabels` tedy bez datapacků nic nemění.
+- `PokemonProperties` zapisuje druh z namespace `cobblemon` jako `path`, jinak celé ID. `{species_id}` dělá totéž.
+
+### 18.2 Změny
+| # | Soubor | Změna |
+|---|---|---|
+| A | `util/Placeholders.java` | `record PokemonText(name, speciesId, form)`, `fill(..., PokemonText, ...)` dosazuje i `{species_id}` a `{form}` (literálně). Stará signatura deleguje. `speciesId(namespace, path)`. |
+| B | `util/Utils.java` | `pokemonText(Pokemon)`: display name, species ID, `form.formOnlyShowdownId()`. Použito ve všech zprávách i příkazech. |
+| C | nový `broadcast/BroadcastQueue.java` | Fronta podle typu s oknem od první zprávy. Stejné texty → 1 řádek. Šablona jen s `{pokemon}` → 1 řádek se jmény spojenými `", "`. S `{price}`, `{species_id}`, `{form}`, `{player}` nebo `{uuid}` → řádek na hunt. Nic se nezahazuje. „Skončil“ jde před „začal“. |
+| D | `broadcast/Broadcaster.java` | `STARTED` a `ENDED` jdou při `timerCooldowns` do fronty, `CAPTURED` vždy hned. `flushDue()`. Fronta přežije `/hunt reload` (pošle se s novým textem). |
+| E | `Hunt.java` | `check()` volá hlídané `broadcaster.flushDue()` každou sekundu. |
+| F | nový `hunts/TargetChooser.java` | Výběr cíle bez obsazených a bez vyloučeného cíle. Když nic nezbude, vyloučený je povolený. |
+| G | `hunts/CurrentHunts.java` | `addHunt(excludedKey)`. `replaceHunt` (vypršení) vyloučí starý cíl. `keyOf` veřejné. |
+| H | `event/CaptureEvent.java` | Náhrada za splněný hunt vyloučí splněný cíl. |
+| I | `config/Config.java` | `excludedLabels` (výchozí `legendary`, `mythical`, `ultra_beast`, `paradox`). Chybějící klíč → config se jednou přepíše. |
+| J | `config/ConfigValidator.java` | `excludedLabels`: `null` → varování a výchozí seznam, prázdné položky → varování, normalizace na malá písmena. Prázdný seznam povolen. |
+| K | `hunts/SpawnRates.java` | Vyřazení podle `excludedLabels` (`HuntRules.isExcluded`). INFO s počtem cílů. |
+| L | `hunts/SingleHunt.java`, nový `hunts/HuntRules.java` | Shiny: `!required \|\| caughtShiny`. |
+| M | `command/basecommand/HuntCommand.java` | GUI ukazuje hunty jako shiny podle configu. Chyba: hráči obecná hláška, detail přes `LOGGER.error` (dřív `e.getMessage()` a `printStackTrace`). |
+| N | `Hunt.java`, `HuntFabric.java` | `END_DATA_PACK_RELOAD` → `Hunt.onDataPackReload`: `spawnRates.init()` a doplnění huntů, v `try/catch`. |
+| O | `README.md` | `{species_id}`, `{form}`, broadcasty, shiny, `excludedLabels`, `/reload`, varování validátoru. |
+| P | `gradle.properties` | `mod_version=1.3.10` |
+| Q | `AUDIT.md` | Tato kapitola, stav, nálezy. |
+
+### 18.3 Testy a ověření
+- **Testy (301, +31):** `PlaceholdersTest` +4 (`{species_id}`, `{form}`, bez hodnot, literálnost, formát ID), nový `BroadcastQueueTest` (11), nový `TargetChooserTest` (6), nový `HuntRulesTest` (5), `ConfigParseTest` +5 (`excludedLabels`).
+- **Mutační kontrola (10 z 10):** bez fallbacku ve výběru, bez vyloučení, zahození položek po první, spojení i se `{price}`, hranice okna, shiny `==`, labely citlivé na velikost písmen, bez upgradu configu, bez normalizace labelů, bez `{form}`.
+- ✅ `bash ./gradlew build --rerun-tasks --warning-mode all` s `-Xlint:all`: zelený, žádné deprecation varování a žádné nové varování v hlavním kódu.
+- ✅ Jar proti 1.3.9 (postavené z commitu `6230ee5`): navíc jen `BroadcastQueue`, `TargetChooser`, `HuntRules` a `Placeholders$PokemonText`, jinak jen hash architectury balíčku. Sources jar odpovídá. `fabric.mod.json` má verzi `1.3.10`.
+
+### 18.4 Test na serveru · ✅ prošlo 2026-11-03
+Před každým scénářem zálohovat `config/hunt/`.
+- a) Start: `config.json` dostane `excludedLabels` (`.bak.1` = originál), v logu INFO `Hunt targets loaded: N`.
+- b) `huntDuration: 1` a `/hunt reload`: po vypršení **jedna** zpráva „ended“ a **jedna** „begun“ se všemi jmény. Šablona s `{price}` → zpráva za každý hunt, žádná nechybí.
+- c) Dvě chycení do 5 s → oba `CAPTURED` broadcasty. `CAPTURED` dorazí před „begun“ náhradního huntu.
+- d) Reward příkaz `say {species_id} {form} {pokemon}` → v `payouts.log` např. `say vulpix alola Vulpix`.
+- e) `matchProperties.shiny: true`: GUI ukazuje shiny modely, žlutý název a ★. Ne-shiny úlovek hunt nesplní, shiny (`/spawnpokemon <druh> shiny`) splní a vyplatí. `false` → splní obojí.
+- f) `/reload` → INFO `hunt targets updated`, žádná chyba, hunty zůstanou a GUI funguje.
+- g) Ruční test GUI (HUNT-027): shift-click, klávesy 1–9, drag, double-click, Q, zavření při lagu → žádný item v inventáři.
+- h) Regrese: chycení a výplata (`PAID`), `/hunt reload`, `/hunt admin save`, `/hunt top`.
+
+Poznámka k testu: první pokus se shiny vypadal jako chyba (hunt nesplnil shiny ani ne-shiny úlovek se správnou nature). Příčinou byla jiná forma chyceného Pokémona, ne kód. README teď výslovně uvádí, že forma musí sedět vždy.
+
+### 18.5 Rizika
+- **`shiny=true` po nasazení znamená, že všechny hunty splní jen shiny úlovek** (~1/8192). **Před nasazením zkontrolovat `matchProperties.shiny` v produkčním configu.** Pokud je tam `true` z doby, kdy to znamenalo „shiny se nepočítá“, hunty se prakticky přestanou plnit.
+- Zprávy „begun/ended“ dorazí se zpožděním až `bufferDuration` + 1 s a v jiném pořadí (`CAPTURED` před „begun“).
+- `CAPTURED` už neomezuje `bufferDuration` (počet je ale omezený počtem huntů).
+- `config.json` se jednou přepíše kvůli `excludedLabels` (originál v `.bak.1`).
+- Datapack s mythical, UB nebo paradox ve world poolu je teď vyřadí. Kdo je chce, smaže label z `excludedLabels`.
+- Po `/reload` může `fillHunts()` vytvořit nové hunty (s broadcastem), pokud předtím chyběly druhy.

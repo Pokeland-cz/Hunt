@@ -7,6 +7,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import org.pokesplash.hunt.Hunt;
@@ -92,14 +93,28 @@ public abstract class Utils {
 	}
 
 	/**
-	 * Fills in the {player}, {uuid}, {pokemon} and {price} placeholders. Values are inserted literally,
+	 * Fills in the {player}, {uuid}, {pokemon}, {species_id}, {form} and {price} placeholders. Values are inserted literally,
 	 * so characters such as $ or \ in a name can't break the substitution.
 	 */
 	public static String formatPlaceholders(String message, ServerPlayer player, Pokemon pokemon, double price) {
 		String name = player == null ? null : player.getName().getString();
 		String uuid = player == null ? null : player.getUUID().toString();
-		String pokemonName = pokemon == null ? null : pokemon.getDisplayName(true).getString();
-		return Placeholders.fill(message, name, uuid, pokemonName, price);
+		return Placeholders.fill(message, name, uuid, pokemonText(pokemon), price);
+	}
+
+	/**
+	 * The texts for the Pokemon placeholders: display name, species id and form id.
+	 * @return the texts, or null if pokemon is null.
+	 */
+	public static Placeholders.PokemonText pokemonText(Pokemon pokemon) {
+		if (pokemon == null) {
+			return null;
+		}
+		ResourceLocation id = pokemon.getSpecies().getResourceIdentifier();
+		return new Placeholders.PokemonText(
+				pokemon.getDisplayName(true).getString(),
+				Placeholders.speciesId(id.getNamespace(), id.getPath()),
+				pokemon.getForm().formOnlyShowdownId());
 	}
 
 	public static ItemStack parseItemId(String id) {

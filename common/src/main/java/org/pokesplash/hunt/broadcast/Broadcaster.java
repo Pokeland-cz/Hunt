@@ -10,13 +10,15 @@ import org.pokesplash.hunt.util.Utils;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
 
 /**
  * Class used to handle the broadcasts to the server.
  */
 public class Broadcaster {
-    private HashMap<BroadcastType, Long> buffers; // The broadcast buffers.
+    // Collected "begun" and "ended" broadcasts. Kept on reload, so nothing queued is lost.
+    private final BroadcastQueue queue = new BroadcastQueue();
     private HashMap<UUID, PlayerBroadcast> playerBuffers; // The buffers for individual hunts.
     private HashMap<BroadcastType, String> broadcastMessages; // The messages for the broadcast type.
 
@@ -25,7 +27,6 @@ public class Broadcaster {
      * Method used to initialise the broadcaster.
      */
     public void init() {
-        buffers = new HashMap<>();
         playerBuffers = new HashMap<>();
         broadcastMessages = new HashMap<>();
 
@@ -113,25 +114,38 @@ public class Broadcaster {
     }
 
     /**
-     * Method called to send a new broadcast. Creates a timer.
+     * Sends a broadcast to all players. "Begun" and "ended" broadcasts are collected for bufferDuration
+     * seconds (if timerCooldowns is on) and sent together by {@link #flushDue()}, none are dropped.
+     * Captured broadcasts are sent right away: they name the player, so they can't be joined.
      * @param type The broadcast type
      * @param player The player relevant
      * @param pokemon The pokemon relevant
      * @param price The price of the hunt
      */
     public void sendBroadcast(BroadcastType type, ServerPlayer player, Pokemon pokemon, double price) {
-
-        // If the buffer config option is false, just send the message.
-        if (!Hunt.config.isTimerCooldowns()) {
+        if (!Hunt.config.isTimerCooldowns() || type == BroadcastType.CAPTURED) {
             broadcastMessage(type, player, pokemon, price);
             return;
         }
+        queue.add(type, Utils.pokemonText(pokemon), price, System.currentTimeMillis());
+    }
 
-        // If the buffer doesn't have a time or enough time has passed, send a broadcast.
-        if (buffers.get(type) == null ||
-        new Date().getTime() - buffers.get(type) > (1000L * Hunt.config.getBufferDuration())) {
-            broadcastMessage(type, player, pokemon, price);
-            buffers.put(type, new Date().getTime());
+    /**
+     * Sends the collected broadcasts whose buffer window is over. Called every second from Hunt.check().
+     */
+    public void flushDue() {
+        if (queue.isEmpty() || Hunt.server == null) {
+            return;
+        }
+        List<String> lines = queue.due(System.currentTimeMillis(), 1000L * Hunt.config.getBufferDuration(),
+                broadcastMessages::get);
+        for (String line : lines) {
+            if (line.isEmpty()) {
+                continue;
+            }
+            for (ServerPlayer pl : new ArrayList<>(Hunt.server.getPlayerList().getPlayers())) {
+                pl.sendSystemMessage(Component.literal(line));
+            }
         }
     }
 }

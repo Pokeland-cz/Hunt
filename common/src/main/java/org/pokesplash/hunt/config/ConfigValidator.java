@@ -99,7 +99,33 @@ public final class ConfigValidator {
 		if (blacklistOk && cfg.getBlacklist().removeIf(name -> name == null || name.isBlank())) {
 			warnings.add("blacklist contains empty entries, they are ignored");
 		}
+		checkExcludedLabels(cfg, warnings);
 		return new Result(errors, warnings);
+	}
+
+	/**
+	 * excludedLabels is optional: a missing key gets the defaults (and is written to the file), null gets the
+	 * defaults with a warning. Labels are compared in lower case.
+	 */
+	private static void checkExcludedLabels(Config cfg, List<String> warnings) {
+		if (cfg.getExcludedLabels() == null) {
+			warnings.add("excludedLabels is null, using " + Config.DEFAULT_EXCLUDED_LABELS);
+			cfg.setExcludedLabels(new ArrayList<>(Config.DEFAULT_EXCLUDED_LABELS));
+			return;
+		}
+		ArrayList<String> labels = new ArrayList<>();
+		boolean empty = false;
+		for (String label : cfg.getExcludedLabels()) {
+			if (label == null || label.isBlank()) {
+				empty = true;
+			} else {
+				labels.add(label.trim().toLowerCase(Locale.ROOT));
+			}
+		}
+		if (empty) {
+			warnings.add("excludedLabels contains empty entries, they are ignored");
+		}
+		cfg.setExcludedLabels(labels);
 	}
 
 	private static boolean usesCurrencyName(Config cfg) {

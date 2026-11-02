@@ -280,11 +280,8 @@ public class SingleHunt {
 			}
 		}
 
-		// Checks shiny, if enabled.
-		if (Hunt.config.getMatchProperties().isShiny()) {
-			return pokemon.getShiny() == this.pokemon.getShiny();
-		}
-		return true;
+		// With matchProperties.shiny only a shiny catch counts.
+		return HuntRules.shinyMatches(Hunt.config.getMatchProperties().isShiny(), pokemon.getShiny());
 	}
 
 }

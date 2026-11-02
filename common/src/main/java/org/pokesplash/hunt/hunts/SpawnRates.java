@@ -2,7 +2,6 @@ package org.pokesplash.hunt.hunts;
 
 import com.cobblemon.mod.common.api.pokemon.PokemonProperties;
 import com.cobblemon.mod.common.api.pokemon.PokemonSpecies;
-import com.cobblemon.mod.common.api.pokemon.labels.CobblemonPokemonLabels;
 import com.cobblemon.mod.common.api.spawning.BestSpawner;
 import com.cobblemon.mod.common.api.spawning.CobblemonSpawnPools;
 import com.cobblemon.mod.common.api.spawning.detail.PokemonHerdSpawnDetail;
@@ -29,7 +28,7 @@ public class SpawnRates {
 	private final HashMap<String, Bucket> rarity;
 	private final HashMap<String, HuntTarget> targets;
 	private final HashMap<Bucket, Float> buckets;
-	// Targets that can be picked for a hunt in each bucket (no legendaries, no blacklisted species).
+	// Targets that can be picked for a hunt in each bucket (no excluded labels, no blacklisted species).
 	private final EnumMap<Bucket, List<HuntTarget>> eligible;
 
 	public SpawnRates() {
@@ -77,10 +76,17 @@ public class SpawnRates {
 		// instead of creating random Pokemon until one happens to fit.
 		rarity.forEach((key, bucket) -> {
 			HuntTarget target = targets.get(key);
-			if (!isLegendary(target.form()) && !isBlacklisted(target)) {
+			if (!HuntRules.isExcluded(target.form().getLabels(), Hunt.config.getExcludedLabels())
+					&& !isBlacklisted(target)) {
 				eligible.computeIfAbsent(bucket, b -> new ArrayList<>()).add(target);
 			}
 		});
+
+		int total = 0;
+		for (Bucket bucket : Bucket.values()) {
+			total += getEligibleTargets(bucket).size();
+		}
+		Hunt.LOGGER.info("Hunt targets loaded: " + total + " species and forms can be hunted.");
 
 		for (Bucket bucket : Bucket.values()) {
 			if (getEligibleTargets(bucket).isEmpty()) {
@@ -154,11 +160,6 @@ public class SpawnRates {
 
 		rarity.put(key, bucket);
 		targets.put(key, target);
-	}
-
-	private static boolean isLegendary(FormData form) {
-		return form.getLabels().stream()
-				.anyMatch(label -> label.equalsIgnoreCase(CobblemonPokemonLabels.LEGENDARY));
 	}
 
 	/**

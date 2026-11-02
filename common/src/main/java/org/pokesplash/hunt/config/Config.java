@@ -16,6 +16,9 @@ import java.util.List;
  * Config file.
  */
 public class Config extends Versioned {
+	/** Labels that are never hunted by default: legendaries, mythicals, Ultra Beasts and Paradox Pokemon. */
+	public static final List<String> DEFAULT_EXCLUDED_LABELS =
+			List.of("legendary", "mythical", "ultra_beast", "paradox");
 	private Economy economy; // The economy mod to use. Options are Impactor, Pebbles, Blanket.
 	private boolean useImpactorDefaultCurrency; // Should Hunt use Impactor's default currency.
 	private String currencyName; // The name of the currency that should be used.
@@ -31,6 +34,7 @@ public class Config extends Versioned {
 	private Properties matchProperties; // What properties should be checked to complete the hunt.
 	private ArrayList<CustomPrice> customPrices; // List of custom prices.
 	private ArrayList<String> blacklist; // List if Pokemon that shouldn't be added to Hunt.
+	private ArrayList<String> excludedLabels; // Species labels (e.g. legendary) that are never hunted.
 	private boolean usePackIcons; // Show species icons from a resource pack instead of Pokemon models in /hunt.
 	private String packIconItem; // The item the resource pack overrides with custom_model_data = dex number.
 	private transient boolean upgraded; // Set by parse() if the file should be rewritten in the new format.
@@ -54,6 +58,7 @@ public class Config extends Versioned {
 		customPrices = new ArrayList<>();
 		customPrices.add(new CustomPrice());
 		blacklist = new ArrayList<>();
+		excludedLabels = new ArrayList<>(DEFAULT_EXCLUDED_LABELS);
 		usePackIcons = true;
 		packIconItem = ConfigValidator.DEFAULT_PACK_ICON_ITEM;
 	}
@@ -90,6 +95,10 @@ public class Config extends Versioned {
 		if (!root.has("usePackIcons")) {
 			cfg.upgraded = true;
 		}
+		// Added in 1.3.10.
+		if (!root.has("excludedLabels")) {
+			cfg.upgraded = true;
+		}
 
 		// The version comes from the file itself: the constructor fills in the current one for a missing key.
 		JsonElement version = root.get("version");
@@ -118,6 +127,10 @@ public class Config extends Versioned {
 
 	void setBufferDuration(int bufferDuration) {
 		this.bufferDuration = bufferDuration;
+	}
+
+	void setExcludedLabels(ArrayList<String> excludedLabels) {
+		this.excludedLabels = excludedLabels;
 	}
 
 	void setPackIconItem(String packIconItem) {
@@ -182,6 +195,13 @@ public class Config extends Versioned {
 
 	public ArrayList<String> getBlacklist() {
 		return blacklist;
+	}
+
+	/**
+	 * @return species labels that are never hunted, in lower case.
+	 */
+	public List<String> getExcludedLabels() {
+		return excludedLabels;
 	}
 
 	public RarityConfig getRarity() {
