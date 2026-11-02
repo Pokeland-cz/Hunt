@@ -14,8 +14,8 @@ Značení: **[ověřeno]** = viděno v kódu Hunt nebo ve zdrojácích/bytecode 
 | 0 – hotfix bezpečnosti (kapitola 9) | ✅ **Hotovo a otestováno (1.3.2)** | Body A–I z 9.1 hotové. Ověření 9.2/1 (build, `-Xlint`), 9.2/2 (`PlayerNames` + `String.replace`) a 9.2/3 (testovací server) prošlo (2026-11-02). Na produkci nasazeno 2026-11-02 jako součást 1.3.3. |
 | 1 – log výplat (HUNT-014) | ✅ **Hotovo a otestováno (1.3.2)** | Každé splnění zapíše řádek do `config/hunt/payouts.log` (JSON Lines) a INFO do `latest.log`. Nově se loguje i `success=false` od ekonomiky (WARN, `DECLINED`). Vyšlo s krokem 0, na produkci nasazeno 2026-11-02 jako součást 1.3.3. Build zelený, test na serveru (9.2/3 g–l) prošel (2026-11-02). |
 | 2 – config se nesmí přepsat (HUNT-004, 012, 016) | ✅ **Hotovo a otestováno (1.3.3)** | Chybný `config.json` na startu Hunt pozastaví (žádné hunty ani odměny, ERROR „PAUSED“). Reload s chybou ponechá starý config a ohlásí to adminovi. Config, lang, hunts i stats se zapisují atomicky přes `FileStore` s rotujícími zálohami `.bak.1–3`. `FileStore.read` rozlišuje „neexistuje“ a „nejde přečíst“. Migrace langu bere texty ze souboru. Build zelený (`-Xlint:all` bez nových varování), offline kontrola parserů a `FileStore` prošla (2026-11-02). Test na testovacím serveru (10.2/2, scénáře a–t) proběhl a prošel (2026-11-02), rotace záloh ověřena i na souborech po restartu. **Nasazeno na produkci (1.3.3) 2026-11-02.** Viz kapitola 10. |
-| 3 – testy (HUNT-015, část) | ✅ **Hotovo (bez release)** | JUnit 5 v `common`, 114 testů v 7 třídách: substituce placeholderů a blokování příkazů (`Placeholders`, nově vyčleněno z `Utils`), `PlayerNames`, `RarityConfig.getRandomRarity` (injektovaný `RandomGenerator`), `Config.parse`, `Lang.parse` a `FileStore`. `bash ./gradlew build` testy spouští a při selhání spadne. Mutační kontrola: 9 z 10 mutací zachyceno, 1 je ekvivalentní (2026-11-02). Runtime chování se nemění, vyjde s krokem 4 (1.3.4). Nové nálezy HUNT-030, HUNT-031 a HUNT-032. Viz kapitola 11. |
-| 4 – `CompletionService` (HUNT-007) | ✅ **Hotovo a otestováno (1.3.4)** | Výplatní tok je vyčleněný do `CompletionService` s injektovanými závislostmi. Pořadí: claim → okamžité uložení `hunts.json` → PENDING v `payouts.log` (fsync, synchronně) → výplata → příkazy jen při úspěchu → stats → DONE. Při selhání ekonomiky se příkazy přeskočí a hráč dostane `payFailedMessage`. Nedokončené výplaty se při startu jen nahlásí. 138 testů, mutační kontrola 10 z 10, test na serveru (12.4/3 a–g) prošel (2026-11-02). Viz kapitola 12. |
+| 3 – testy (HUNT-015, část) | ✅ **Hotovo, nasazeno s 1.3.4** | JUnit 5 v `common`, 114 testů v 7 třídách: substituce placeholderů a blokování příkazů (`Placeholders`, nově vyčleněno z `Utils`), `PlayerNames`, `RarityConfig.getRandomRarity` (injektovaný `RandomGenerator`), `Config.parse`, `Lang.parse` a `FileStore`. `bash ./gradlew build` testy spouští a při selhání spadne. Mutační kontrola: 9 z 10 mutací zachyceno, 1 je ekvivalentní (2026-11-02). Runtime chování se nemění, vyšlo s krokem 4 v 1.3.4 (na produkci 2026-11-02). Nové nálezy HUNT-030, HUNT-031 a HUNT-032. Viz kapitola 11. |
+| 4 – `CompletionService` (HUNT-007) | ✅ **Hotovo, otestováno a nasazeno (1.3.4)** | Výplatní tok je vyčleněný do `CompletionService` s injektovanými závislostmi. Pořadí: claim → okamžité uložení `hunts.json` → PENDING v `payouts.log` (fsync, synchronně) → výplata → příkazy jen při úspěchu → stats → DONE. Při selhání ekonomiky se příkazy přeskočí a hráč dostane `payFailedMessage`. Nedokončené výplaty se při startu jen nahlásí. 138 testů, mutační kontrola 10 z 10, test na serveru (12.4/3 a–g) prošel. **Na produkci nasazeno 2026-11-02.** Viz kapitola 12. |
 | 5–9 | ⬜ Neprovedeno | |
 
 ---
@@ -96,7 +96,7 @@ Ověřeno také: `forcedAspects` setter → `updateAspects()` → `aspects` sett
 - **Testy: žádné.** `compileTestJava NO-SOURCE` / `test NO-SOURCE` ve všech modulech. V `test-data/stats.json` (untracked) jsou jen ukázková data. *Krok 3: `common` má 114 JUnit 5 testů (kapitola 11), `fabric` a `forge` zůstávají `NO-SOURCE`.*
 - Gradle deprecation (rozbije přechod na Gradle 9/10): `archivesBaseName` (`build.gradle:33`), `BasePluginConvention`, `JavaPluginConvention` a `ConfigureUtil` (shadow plugin 7.1.2 ve `fabric/build.gradle:2`), Groovy „space assignment“ (`settings.gradle:3-5`, `build.gradle:47,58`, `fabric/build.gradle:22-23`, `forge/build.gradle:20`).
 - Závislosti: `gooeylibs 3.1.0-SNAPSHOT` a `impactor 5.3.0-SNAPSHOT` jsou SNAPSHOT, takže build není reprodukovatelný. Shadow plugin `com.github.johnrengelman.shadow 7.1.2` je zastaralý (nástupce `com.gradleup.shadow`). Kotlin plugin 2.2.0 se aplikuje, ale v projektu není žádný Kotlin.
-- V gradle cache je i `cobblemon-1.8.4+1.21.1`. Pokud běží produkce na 1.8.4, kompilace proti 1.8.0 projde (API ověřeno výše), ale je vhodné bumpnout.
+- V gradle cache je i `cobblemon-1.8.4+1.21.1`. Pokud běží produkce na 1.8.4, kompilace proti 1.8.0 projde (API ověřeno výše), ale je vhodné bumpnout. **Odpověď provozovatele (2026-11-02): produkce běží na Cobblemonu 1.8.4.** Bump `cobblemon_version` na `1.8.4+1.21.1` patří do kroku 8 (spolu s horní hranicí `<1.9` v HUNT-023).
 
 ---
 
@@ -187,18 +187,20 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 - **Scénář:** Hráč, který má přes LuckPerms `minecraft.command.execute` (některé servery ho dávají kvůli `/execute` v minihrách), napíše `/execute as @e[type=cow,limit=1] run hunt refresh` a přelosuje globální hunty („reroll“ na lukrativní cíle). Stejně tak `hunt reload`.
 - **Oprava:** Kontrolovat `source.hasPermission(level)` nebo `Permissions.check(source, node, level)` nad `CommandSourceStack`. Cobblemon má `hasPermission(CommandSourceStack, Permission)`. **S**.
 
-#### HUNT-010 · Hunt se splní jakýmkoli divokým Pokémonem bez ohledu na původ · A · [ověřeno: matching; podezření: konkrétní zdroje]
+#### HUNT-010 · Hunt se splní jakýmkoli divokým Pokémonem bez ohledu na původ · A · **Nízká (revize 3, původně Střední)** · [ověřeno: matching; podezření: konkrétní zdroje]
 - **Kde:** `event/CaptureEvent.java:24-30`, `hunts/SpawnRates.java:53,60` (rarita a cena se počítají jen z `worldBuckets`).
 - **Popis:** Cobblemon postuje event jen pro divoké Pokémony chycené ballem (dobře). Nezáleží ale na tom, odkud Pokémon pochází: PokeSnack (1.8, bucket váhy `rare 4.125 / ultra-rare 1.375` proti world `0.5 / 0.2`), rybaření, admin `/spawnpokemon`, spawner bloky, raid nebo lure módy. Cena „ultra-rare“ se ale počítá z vzácnosti ve světě.
 - **Scénář:** Hráč zjistí, že ultra-rare cíl jde přilákat PokeSnackem nebo že ho spawnuje farma nebo spawner. Opakovaně farmí ultra-rare odměny.
 - **Oprava:** Volitelný filtr původu. Cobblemon ukládá spawn kontext a data (`pokemon.persistentData` / `PokemonEntity` spawn cause); je potřeba ověřit, co je v 1.8 dostupné. Nebo aspoň počítat raritu ze všech bucket map. **M**.
 - **Otázka:** Jaké módy na serveru spawnují chytatelné divoké Pokémony (raidy, lures, spawnery)?
+- **Odpověď provozovatele (2026-11-02):** žádné, divoké Pokémony spawnuje jen samotný Cobblemon. Odpadají tedy cizí módy (raidy, lures, spawnery). Zůstávají zdroje přímo v Cobblemonu: PokeSnack (bait s vyššími vahami `rare`/`ultra-rare`), rybaření a admin `/spawnpokemon`. **Závažnost snížena na Nízká.** Pokud by se farmení přes PokeSnack v `payouts.log` ukázalo jako problém, řešit v kroku 9 (rarita ze všech bucket map, nebo filtr původu).
 
-#### HUNT-011 · Blokující `CompletableFuture.join()` ekonomiky na hlavním vlákně · B/D · [podezření]
+#### HUNT-011 · Blokující `CompletableFuture.join()` ekonomiky na hlavním vlákně · B/D · **Nízká (revize 3, původně Střední)** · [podezření]
 - **Kde:** `economy/ImpactorService.java:57` (`service.account(currency, uuid).join()`), `api/economy/HuntEconomyProvider.java:56-69` (při **každé** výplatě nová instance služby a u Pebbles/Blanket reflexe s `Class.forName`).
 - **Popis:** Pokud Impactor používá SQL úložiště nebo účet není v cache (alt účet, viz HUNT-005), tick stojí na IO.
 - **Oprava:** Účet předem načíst při joinu, případně platit asynchronně a výsledek vrátit na hlavní vlákno (`server.execute`). Instanci služby cachovat. **S–M**.
 - **Otázka:** Jaký storage backend používá Impactor na serveru?
+- **Odpověď provozovatele (2026-11-02):** JSON (lokální soubory). `join()` tedy nečeká na síť ani databázi, nejvýš na čtení malého lokálního souboru u účtu, který ještě není načtený. **Závažnost snížena na Nízká**, samostatný krok není potřeba. Cache instance ekonomické služby lze přidat v kroku 8. Přehodnotit při přechodu Impactoru na SQL.
 
 #### ✅ HUNT-012 · [opraveno v 1.3.3, krok 2] · Chyba IO při čtení dat = „soubor neexistuje“ → přepsání · C · [ověřeno]
 - **Kde:** `util/FileStore.java:49-51` (IOException → `null`), `stats/HuntStats.java:54-69`, `hunts/HuntStorage.java:69-72`.
@@ -240,7 +242,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 | HUNT-020 | A | `util/Utils.java:266` | `{pokemon}` v příkazech = přeložené jméno, případně s titulem marku (`getDisplayName(true)`): „Mr. Mime“, „Farfetch'd“, „Vulpix the Peppy“. Mezery posunou argumenty příkazu. [ověřeno] | Přidat `{species_id}` a `{form}`. | S |
 | HUNT-021 | A | `hunts/SingleHunt.java:285-287` | Hunt Pokémon nikdy není shiny, takže `matchProperties.shiny=true` znamená „shiny se NEpočítá“. Matoucí. [ověřeno] | Přejmenovat nebo zdokumentovat, případně možnost „shiny bonus“. | S |
 | HUNT-022 | A | `hunts/SpawnRates.java:159-161` | Vyřazuje se jen label `legendary`. `mythical`, `ultra_beast` a `paradox` projdou, pokud je nějaký datapack nebo addon dá do world poolu. [ověřeno, výskyt je otázka] | Konfigurovatelný seznam vyřazených labelů. | S |
-| HUNT-023 | F | `fabric.mod.json`, `build.gradle` | `cobblemon >=1.8.0` bez horní hranice (1.8 už jednou rozbila spawning API, viz komentář `SpawnRates.java:47-51`). Chybí `fabric-api` v `depends`, `icon.png` neexistuje, `environment: "*"` u server-only módu. SNAPSHOT závislosti, Gradle deprecations (kap. 3), `gradlew` bez +x. [ověřeno] | `cobblemon: ">=1.8.0 <1.9"`, doplnit depends, pinout verze. | S |
+| HUNT-023 | F | `fabric.mod.json`, `build.gradle` | Produkce běží na 1.8.4, build kompiluje proti 1.8.0. `cobblemon >=1.8.0` bez horní hranice (1.8 už jednou rozbila spawning API, viz komentář `SpawnRates.java:47-51`). Chybí `fabric-api` v `depends`, `icon.png` neexistuje, `environment: "*"` u server-only módu. SNAPSHOT závislosti, Gradle deprecations (kap. 3), `gradlew` bez +x. [ověřeno] | `cobblemon: ">=1.8.0 <1.9"`, doplnit depends, pinout verze. | S |
 | HUNT-024 | F | `command/subcommand/DebugCommand.java`, `old/*`, `Settings.java`, `forge/*`, `util/Utils.java:44-181` | Mrtvý nebo matoucí kód: neregistrovaný Debug (navíc hlásí slot −1), prázdný `Settings.java` v rootu. `readFileAsync`/`writeFileAsync` jsou ve skutečnosti synchronní (`join`, `get`) a `writeFileAsync` nekontroluje částečný zápis. NeoForge modul na Fabric serveru nikdo netestuje. [ověřeno] | Smazat, sjednotit IO na `FileStore`. **Krok 2 (1.3.3):** `Utils` IO metody a mrtvé `LangOld.init` / `ConfigOld.write` jsou odstraněné, veškeré IO jde přes `FileStore`. `LangOld` už nikdo nepoužívá. | S |
 | HUNT-025 | B/D | `broadcast/Broadcaster.java:20`, `hunts/HuntManager.java:66-71` | `playerBuffers` roste do reloadu (malý leak, 1 záznam na hráče). `checkOnlinePlayers` každou sekundu kopíruje množinu **všech** známých UUID a hledá je mezi online hráči. Iterovat stačí online hráče. [ověřeno] | Iterovat `getPlayerList().getPlayers()`, čistit při disconnectu. | S |
 | HUNT-026 | A | `hunts/CurrentHunts.java:66, 192-197` | `taken` se počítá až po odebrání splněného huntu, takže stejný druh může být hned znovu vylosován. Hráč na spawnu daného druhu dostane šanci 1/|bucket| na okamžité další splnění. [ověřeno, malý dopad] | Vyloučit právě splněný cíl. | S |
@@ -272,9 +274,9 @@ Tyto nálezy se projeví až po zapnutí `individualHunts`. Kód je dnes nepouž
 1. ~~Je zapnuté `individualHunts`?~~ **Odpověď: ne.** HUNT-005 a HUNT-006 jsou latentní.
 2. ~~Proxy a validace jmen?~~ **Odpověď:** Velocity (znaky nekontroluje, ověřeno), AuthMe `[a-zA-Z0-9_]*`. Podmínky 2–4 z HUNT-001 (Velocity `try` a forced-hosts, přímý přístup na backend, přepnutí serveru před přihlášením) provozovatel **ověřil, všechny platí**.
 3. ~~Reward příkazy a převoditelnost měny?~~ **Odpověď:** `{player}` se používá, měna je převoditelná.
-4. Jaký storage backend používá Impactor (HUNT-011)?
-5. Které módy spawnují chytatelné divoké Pokémony (HUNT-010)?
-6. Přesná verze Cobblemonu v produkci (v cache je 1.8.4)? Běží nějaký mód, který chytá výjimky z ticku entit (např. Neruina)? Ten by změnil HUNT-002 a HUNT-003 z „pád serveru“ na „smazání entity Pokéballu“.
+4. ~~Jaký storage backend používá Impactor (HUNT-011)?~~ **Odpověď: JSON.** HUNT-011 snížen na Nízká.
+5. ~~Které módy spawnují chytatelné divoké Pokémony (HUNT-010)?~~ **Odpověď: žádné, jen Cobblemon.** HUNT-010 snížen na Nízká (zůstává PokeSnack, rybaření a `/spawnpokemon`).
+6. ~~Přesná verze Cobblemonu v produkci?~~ **Odpověď: 1.8.4.** Bump závislosti v kroku 8. Dotaz na Neruinu a podobné módy už není potřeba, protože HUNT-002 a HUNT-003 jsou opravené v kroku 0.
 7. ~~Kolik unikátních UUID má server?~~ Pro globální režim nerelevantní, zůstává jen jako podmínka pro případné zapnutí individuálních huntů.
 
 ---
@@ -388,15 +390,15 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 | 0 | ✅ **HOTOVO (1.3.2)** · **Hotfix bezpečnosti:** substituce placeholderů přes `String.replace` (literál), validace jména `^[A-Za-z0-9_]{1,16}$` před spuštěním příkazů (při neshodě příkazy přeskočit + WARN), nový placeholder `{uuid}`; `try/catch (Throwable)` kolem celého capture handleru, `Hunt.check()` a každého `HuntEvents` listeneru | 001, 002, 003 | S |
 | 1 | ✅ **HOTOVO (1.3.2)** · **Log výplat:** jeden INFO řádek na completion (`uuid, jméno, huntId, druh/forma, bucket, cena, výsledek ekonomiky, provedené příkazy`), ideálně do `config/hunt/payouts.log` | 014 | S |
 | 2 | ✅ **HOTOVO (1.3.3)** · **Config se nesmí přepsat:** rozlišit „neexistuje“ a „nečitelný“; při chybě parsování na startu běžet bez odměn + ERROR, při `/hunt reload` ponechat starý config; config a lang zapisovat přes `FileStore` (atomicky); opravit migraci langu; `FileStore.read` při IOException neházet „soubor neexistuje“ | 004, 012, 016 | M |
-| 3 | ✅ **HOTOVO** · **Testy:** JUnit 5 v `common`; testy substituce (`@a`, `Ash$1`, `a\`, `x;y`, `"`), `RarityConfig.getRandomRarity`, načítání rozbitého configu | 015 (část) | S |
-| 4 | ✅ **HOTOVO (1.3.4)** · **`CompletionService`:** vyčlenit výplatní tok z `CaptureEvent` (claim → log PENDING → ekonomika → příkazy jen při úspěchu → log DONE → stats), po completion vynutit uložení `hunts.json`; testy (selhání ekonomiky, dvojí completion) | 007 | M |
+| 3 | ✅ **HOTOVO (1.3.4)** · **Testy:** JUnit 5 v `common`; testy substituce (`@a`, `Ash$1`, `a\`, `x;y`, `"`), `RarityConfig.getRandomRarity`, načítání rozbitého configu | 015 (část) | S |
+| 4 | ✅ **HOTOVO a nasazeno (1.3.4)** · **`CompletionService`:** vyčlenit výplatní tok z `CaptureEvent` (claim → log PENDING → ekonomika → příkazy jen při úspěchu → log DONE → stats), po completion vynutit uložení `hunts.json`; testy (selhání ekonomiky, dvojí completion) | 007 | M |
 | 5 | **Oprávnění:** `requires` přes `CommandSourceStack` místo `isPlayer() ? check : true`; sjednotit `/hunt` a `/hunts` a opravit README | 009, 017 | S |
 | 6 | **Validace configu** s jasnými hláškami (`huntDuration > 0`, `huntAmount 1–28`, váhy, `economy`, ceny, existence druhů v `customPrices` a `blacklist`) | 008 | M |
 | 7 | **Admin příkazy:** reset stats, `save`, zobrazení stats podle UUID | 013, 028 | S |
 | 8 | **Úklid:** `old/` (po ověření, že nikdo nemá config < 1.2.3), `DebugCommand`, `Settings.java`, Utils IO, `fabric.mod.json` (`cobblemon <1.9`, `fabric-api`), Gradle deprecations, `gradlew +x`; rozhodnout o `forge/` | 023, 024 | S |
 | 9 | **Kosmetika a drobnosti:** agregované broadcasty, `{species_id}`, labely mythical/UB/paradox, datapack reload hook, GUI hláška, vyloučení právě splněného cíle | 018, 020, 021, 022, 026, 027, 029 | S |
 | — | **Odloženo, dokud se nezapne `individualHunts`:** HUNT-005 (policy výplat), HUNT-006 (lehký model, prune, serializace mimo tick), HUNT-019, HUNT-025 | 005, 006, 019, 025 | M–L |
-| — | **Podle výsledku testu na serveru:** HUNT-010 (původ Pokémona), HUNT-011 (Impactor `join()`) | 010, 011 | M |
+| — | ~~**Podle výsledku testu na serveru:** HUNT-010 (původ Pokémona), HUNT-011 (Impactor `join()`)~~ **Odpovězeno 2026-11-02:** jen Cobblemon spawny a Impactor na JSON, oba nálezy sníženy na Nízká. Případně krok 8 (cache služby) a 9 (PokeSnack) | 010, 011 | S |
 
 **Migrace dat:** žádná. Formáty `hunts.json`, `stats.json`, `config.json` a `lang.json` zůstávají a nové klíče configu jsou volitelné s defaulty (Gson pro chybějící pole zachová hodnoty z no-arg konstruktoru).
 
@@ -408,9 +410,9 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 2. ~~**Jen pokud ověření selže**~~ *(nebylo potřeba, ověření prošlo)* (hráč se jménem mimo `[A-Za-z0-9_]` se dostane na Cobblemon server): okamžitě odstranit `{player}` z `captureHuntBroadcast` v `lang.json` a z reward příkazů, pak `/hunt reload`. Odměny přes příkazy tím do hotfixu přestanou fungovat. Placeholder `{uuid}` (vanilla `give` UUID přijme) přidá až krok 0.
 3. **Kroky 0 a 1 jako jeden hotfix release.** ✅ Nasazeno 2026-11-02 (v 1.3.3 spolu s krokem 2). Po nasazení 1–2 dny sledovat `payouts.log`. Měna je převoditelná, takže log je jediný způsob, jak zpětně najít případné zneužití.
 4. Krok 2 (config) před další úpravou `config.json` na produkci. **Hotovo, otestováno a nasazeno v 1.3.3 (2026-11-02)** (kapitola 10).
-5. Kroky 3–4 (testy a `CompletionService`), pak 5–6.
+5. Kroky 3–4 (testy a `CompletionService`). ✅ **Hotovo, otestováno a nasazeno v 1.3.4 (2026-11-02)** (kapitoly 11 a 12). Dál kroky 5–6.
 6. Kroky 7–9 průběžně.
-7. Ruční test GUI (HUNT-027) a test spawn zdrojů (HUNT-010) na testovacím serveru se stejným modpackem.
+7. Ruční test GUI (HUNT-027). Test spawn zdrojů (HUNT-010) už není potřeba: podle provozovatele spawnuje divoké Pokémony jen Cobblemon (revize 3).
 
 ---
 
@@ -551,9 +553,9 @@ Změněno 16 souborů a 1 nový (+494 / −402 řádků).
 
 ---
 
-## 11. Plán kroku 3: JUnit 5 testy · ✅ HOTOVO (bez samostatného release)
+## 11. Plán kroku 3: JUnit 5 testy · ✅ HOTOVO (vyšlo s krokem 4 v 1.3.4)
 
-**Stav:** Změny A–K z 11.1 jsou implementované a ověření z 11.2 prošlo (2026-11-02). `mod_version` zůstává `1.3.3`: runtime chování se nemění (refaktor je čistá delegace), takže se krok nasadí až s krokem 4.
+**Stav:** Změny A–K z 11.1 jsou implementované a ověření z 11.2 prošlo (2026-11-02). `mod_version` zůstává `1.3.3`: runtime chování se nemění (refaktor je čistá delegace), takže se krok nasadil až s krokem 4 (1.3.4, na produkci 2026-11-02).
 
 **Cíl:** Opakovatelná síť proti regresím v místech, kde vznikaly exploity a ztráty dat (HUNT-001, 002, 004, 012, 016), ještě před krokem 4, který mění výplatní tok. Jednorázové skripty z 9.2/2 a 10.2/1b jsou teď testy v buildu.
 **Mimo rozsah:** matching (`SingleHunt.matches`), generování huntů (`CurrentHunts`), `HuntStats`, `HuntStorage` a výplatní tok. Ty závisí na Cobblemon objektech nebo statickém `Hunt.*` a přijdou s `CompletionService` (krok 4).
@@ -591,9 +593,9 @@ Změněny 3 soubory, přibyl 1 produkční a 7 testových souborů (~700 řádk�
 
 ---
 
-## 12. Plán kroku 4: `CompletionService` (1.3.4) · ✅ HOTOVO a otestováno
+## 12. Plán kroku 4: `CompletionService` (1.3.4) · ✅ HOTOVO, otestováno a nasazeno
 
-**Stav:** Změny A–K z 12.2 jsou implementované. Z 12.4 prošly body 1 (build zelený, 138 testů, `-Xlint:all` bez nových varování) a 2 (mutační kontrola 10 z 10). **Bod 3 (testovací server, scénáře a–g) proběhl a prošel** (2026-11-02).
+**Stav:** Změny A–K z 12.2 jsou implementované. Z 12.4 prošly body 1 (build zelený, 138 testů, `-Xlint:all` bez nových varování) a 2 (mutační kontrola 10 z 10). **Bod 3 (testovací server, scénáře a–g) proběhl a prošel** (2026-11-02). **Nasazeno na produkci podle 12.5 2026-11-02.**
 
 **Cíl:** Vyřešit HUNT-007. Splněný hunt se po tvrdém pádu nesmí vrátit, selhání ekonomiky nesmí spustit reward příkazy a každá rozběhnutá výplata musí být dohledatelná. Výplatní tok má být testovatelný bez serveru.
 **Rozhodnutí provozovatele (2026-11-02):** (1) nedokončené výplaty (PENDING bez DONE) se při startu **jen nahlásí**, nic se nevyplácí automaticky (u pádu mezi depositem a DONE nejde zjistit, jestli peníze odešly). (2) Při selhání ekonomiky se reward příkazy **přeskočí** a hráč dostane zprávu. Hunt s cenou 0 příkazy spouští dál. (3) Žurnál je `payouts.log` s polem `phase` (`PENDING`/`DONE`) a `completionId`.
@@ -646,7 +648,7 @@ Testy: nové `event/CompletionServiceTest` (14) a `event/PayoutJournalTest` (9),
    - f) `jq -c . config/hunt/payouts.log` načte všechny řádky včetně řádků z 1.3.3.
    - g) Regrese 9.2/3 a), b) (`Test$1`: `{player}` přeskočen, `{uuid}` proběhne) a 10.2/2 s).
 
-### 12.5 Nasazení a rollback
+### 12.5 Nasazení a rollback · ✅ nasazeno 2026-11-02
 1. Zálohovat `config/hunt/` a jar 1.3.3. Nasadit 1.3.4 při restartu.
 2. Po startu: `grep -E "Hunt.*(PAUSED|ERROR|Unfinished)" logs/latest.log` je prázdné.
 3. Skripty nad `payouts.log` upravit na filtr `select(.outcome != null)` (jen DONE a řádky z 1.3.3, bez PENDING a bez ručně připsaných `resolved` řádků).
