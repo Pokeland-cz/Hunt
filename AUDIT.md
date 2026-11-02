@@ -658,3 +658,51 @@ Testy: nové `event/CompletionServiceTest` (14) a `event/PayoutJournalTest` (9),
 - Synchronní fsync na hlavním vlákně při každém splnění huntu (jednotky ms, splnění je vzácné). Čeká i na případný zařazený zápis `hunts.json` nebo `stats.json`.
 - Při selhání ekonomiky hráč nedostane itemy z příkazů. Je to záměr (rozhodnutí 2).
 - `scan()` čte celý `payouts.log` při každém startu. 100k splnění je ≈ 40–80 MB, proudově řádově 1–2 s. Při velkém logu ho archivovat (po vyřešení všech nedokončených výplat).
+
+---
+
+## 13. Plán kroku 5: oprávnění (1.3.5) · ⬜ NAPLÁNOVÁNO
+
+**Cíl:** Oprávnění se kontrolují u zdroje příkazu (`CommandSourceStack`), ne podle `isPlayer() ? kontrola : povolit` (HUNT-009). `/hunt` a `/hunts` se chovají stejně a README odpovídá kódu (HUNT-017).
+**Rozhodnutí provozovatele (2026-11-02):** `hunt.base` řídí **jen GUI**. Bez něj `/hunt` i `/hunts` nezobrazí GUI a hráč dostane hlášku. Podpříkazy (`stats`, `top`, `reload`, `refresh`) se řídí jen svými oprávněními.
+**Mimo rozsah:** nové admin příkazy (krok 7), `DebugCommand` (neregistrovaný, smaže krok 8), NeoForge validator.
+**Datové formáty se nemění.** Návrat na 1.3.4 = výměna jaru.
+
+### 13.1 Ověřené chování (Cobblemon-fabric 1.8.4 bytecode)
+- `PermissionValidator` má `hasPermission(CommandSourceStack, Permission)`. `FabricPermissionValidator` ho implementuje jako `me.lucko.fabric.api.permissions.v0.Permissions.check(source, node, level)`.
+- fabric-permissions-api u zdroje příkazu: pokud je entitou zdroje hráč, rozhoduje LuckPerms podle hráče. Jinak (konzole, command block, `execute as <ne-hráč>`) platí fallback `source.hasPermission(level)`, tedy OP level zdroje. `execute as` OP level nemění, takže `execute as @e[type=cow] run hunt refresh` od běžného hráče (level 0) neprojde. Konzole (level 4) a command blocky (level 2) projdou.
+- `Cobblemon.setPermissionValidator` existuje, takže testy mohou podstrčit falešný validator.
+
+### 13.2 Změny po souborech
+| # | Soubor | Změna | Řeší |
+|---|---|---|---|
+| A | `util/Permissions.java` | `hasPermission(CommandSourceStack, CobblemonPermission)` přes Cobblemon validator a `Predicate<CommandSourceStack> requires(String name)` pro `.requires(...)`. Neznámý název → `IllegalArgumentException` už při registraci (překlep se neprojeví až za běhu). | 009 |
+| B | `command/subcommand/ReloadCommand.java`, `RefreshCommand.java`, `StatsCommand.java`, `TopCommand.java` | `.requires(Hunt.permissions.requires("HuntReload"))` atd. místo `isPlayer() ? … : true`. | 009 |
+| C | `util/BaseCommand.java` | Alias `/hunts` bez vlastního `requires`, jen `redirect` na kořen. Kořen ani alias tak nikoho neschovají a podpříkazy fungují i přes `/hunts`. | 017 |
+| D | `command/basecommand/HuntCommand.java` | `run()`: hráč bez `hunt.base` (kontrola nad zdrojem) → „§5[Hunt] §cYou don't have permission to open the hunts.“ a návrat. Pořadí: hráč? → oprávnění → pauza → GUI. | 017 |
+| E | `README.md` | Tabulka příkazů: `/hunt` (alias `/hunts`) a `hunt.base` jen pro GUI. Výchozí úrovně (`hunt.base`, `stats`, `top` = 0, `reload`, `refresh` = OP 2). Odstavec o konzoli, command blocích a `execute as`. | 017 |
+| F | `gradle.properties` | `mod_version=1.3.5` | – |
+
+Odhad: ~8 souborů, ~80 změněných řádků, náročnost **S**.
+
+### 13.3 Testy (JUnit 5)
+- **`CommandPermissionTest`:** `HuntCommand` zaregistrovaný do vlastního `CommandDispatcher`, falešný `PermissionValidator` přes `Cobblemon.setPermissionValidator` a `CommandSourceStack` bez entity se zadaným OP levelem. Rozhoduje, jestli `dispatcher.parse(...)` najde příkaz (bez spuštění):
+  - level 0 bez entity (= `execute as <kráva>` od hráče): `hunt refresh`, `hunt reload`, `hunts refresh` a `hunts reload` neprojdou. `hunt stats` a `hunt top` projdou (úroveň 0).
+  - level 2 (command block) a 4 (konzole): vše projde.
+  - `/hunts stats` a `/hunt stats` se chovají stejně (alias už nic neschovává).
+  - Že se oprávnění ptá validatoru přes zdroj, ne přes hráče: falešný validator zaznamená volání `hasPermission(CommandSourceStack, …)`.
+  - Neznámý název v `requires(...)` → výjimka.
+- Pokud by `CommandSourceStack` nešel v testu bez bootstrapu MC sestavit, fallback je test samotného predikátu z `Permissions.requires` s falešným validatorem a stubem zdroje. Rozhodnu při implementaci a zapíšu do odchylek.
+- Mutační kontrola: vrátit `isPlayer() ? … : true` u `refresh`, vynechat kontrolu `hunt.base` v GUI, `requires` na aliasu zpět.
+
+### 13.4 Ověření na testovacím serveru
+- a) Běžný hráč bez OP: `/hunt`, `/hunts`, `/hunt stats`, `/hunt top` fungují. `/hunt reload` a `/hunt refresh` nejsou v tab completion a hlásí neznámý příkaz.
+- b) Týž hráč s `minecraft.command.execute` (LuckPerms): `/execute as @e[type=cow,limit=1] run hunt refresh` **neprojde** a hunty se nezmění. Totéž s `hunt reload`.
+- c) OP 2 nebo LuckPerms `hunt.refresh` / `hunt.reload`: příkazy fungují, i přes `/hunts refresh`.
+- d) Konzole: `hunt reload`, `hunt refresh` fungují. Command block s `hunt refresh` funguje.
+- e) LuckPerms `hunt.base=false`: `/hunt` i `/hunts` vypíšou hlášku o oprávnění, `/hunt stats` a `/hunt top` fungují.
+- f) Regrese: 9.2/3 a) (chycení, výplata) a 12.4/3 a) (PENDING/DONE).
+
+### 13.5 Rizika
+- **Změna chování:** non-player zdroje s OP levelem pod 2 (např. NPC nebo jiné módy, které spouštějí `hunt refresh` jako entita bez OP) přestanou mít přístup. To je záměr HUNT-009.
+- **`execute as <jiný hráč>`:** když má hráč `minecraft.command.execute` a spustí příkaz jako admin, LuckPerms posuzuje oprávnění admina. To je vlastnost fabric-permissions-api a týká se všech módů na serveru, ne jen Hunt. Opatření je nedávat běžným hráčům `minecraft.command.execute`. Mód to sám vyřešit neumí, protože `CommandSourceStack` původního hráče nepamatuje.
