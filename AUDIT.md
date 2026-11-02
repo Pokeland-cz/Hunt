@@ -17,7 +17,7 @@ Značení: **[ověřeno]** = viděno v kódu Hunt nebo ve zdrojácích/bytecode 
 | 3 – testy (HUNT-015, část) | ✅ **Hotovo, nasazeno s 1.3.4** | JUnit 5 v `common`, 114 testů v 7 třídách: substituce placeholderů a blokování příkazů (`Placeholders`, nově vyčleněno z `Utils`), `PlayerNames`, `RarityConfig.getRandomRarity` (injektovaný `RandomGenerator`), `Config.parse`, `Lang.parse` a `FileStore`. `bash ./gradlew build` testy spouští a při selhání spadne. Mutační kontrola: 9 z 10 mutací zachyceno, 1 je ekvivalentní (2026-11-02). Runtime chování se nemění, vyšlo s krokem 4 v 1.3.4 (na produkci 2026-11-02). Nové nálezy HUNT-030, HUNT-031 a HUNT-032. Viz kapitola 11. |
 | 4 – `CompletionService` (HUNT-007) | ✅ **Hotovo, otestováno a nasazeno (1.3.4)** | Výplatní tok je vyčleněný do `CompletionService` s injektovanými závislostmi. Pořadí: claim → okamžité uložení `hunts.json` → PENDING v `payouts.log` (fsync, synchronně) → výplata → příkazy jen při úspěchu → stats → DONE. Při selhání ekonomiky se příkazy přeskočí a hráč dostane `payFailedMessage`. Nedokončené výplaty se při startu jen nahlásí. 138 testů, mutační kontrola 10 z 10, test na serveru (12.4/3 a–g) prošel. **Na produkci nasazeno 2026-11-02.** Viz kapitola 12. |
 | 5 – oprávnění (HUNT-009, 017) | ✅ **Hotovo, otestováno a nasazeno (1.3.5)** | `reload`, `refresh`, `stats` a `top` kontrolují oprávnění u zdroje příkazu (`CommandSourceStack`), takže `execute as <mob>` už nic neobejde. `/hunts` je čistý alias, `hunt.base` řídí jen GUI. README uvádí skutečné uzly s prefixem `cobblemon.` (nový nález HUNT-033). 161 testů, mutační kontrola 6 z 6, test na serveru (13.4 a–f) prošel. **Na produkci nasazeno 2026-11-02.** Viz kapitola 13. |
-| HUNT-033 – uzly oprávnění | 🟡 **Implementováno (1.3.6), čeká na test na serveru** | Uzly jsou zase `hunt.*` (bez prefixu `cobblemon.`), jak uvádělo původní README. Nová třída `HuntPermission` předává uzel Cobblemon validatoru beze změny. V LuckPerms provozovatele žádné uzly Hunt nastavené nejsou, takže se nic nerozbije. 161 testů (2026-11-02). Viz kapitola 14. |
+| HUNT-033 – uzly oprávnění | ✅ **Hotovo, otestováno a nasazeno (1.3.6)** | Uzly jsou zase `hunt.*` (bez prefixu `cobblemon.`), jak uvádělo původní README. Nová třída `HuntPermission` předává uzel Cobblemon validatoru beze změny. V LuckPerms provozovatele žádné uzly Hunt nastavené nejsou, takže se nic nerozbije. 161 testů, test na serveru (14.2 a–e) prošel. **Na produkci nasazeno 2026-11-02.** Viz kapitola 14. |
 | 6–9 | ⬜ Neprovedeno | |
 
 ---
@@ -252,7 +252,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 | HUNT-028 | E | `stats/HuntStats.java:99-103` | `/hunt stats <jméno>` vrací první shodu bez ohledu na velikost písmen. Offline mode umožní `Steve` i `steve` jako dva účty se dvěma UUID. [ověřeno] | Preferovat přesnou shodu, umožnit zadat UUID. | S |
 | HUNT-029 | B | `Hunt.java:86-91` | Vanilla `/reload` (datapacky) neobnoví `SpawnRates`. Hunty drží staré `Species` objekty (matching jede přes jména, takže funkčně OK). [ověřeno] | Hook na `END_DATA_PACK_RELOAD`. | S |
 | HUNT-030 | A | `util/Placeholders.java:43` (dříve `Utils.formatPlaceholders`) | `{price}` formátuje `DecimalFormat("0.##")` podle locale JVM. Na serveru s `cs_CZ` (nebo jiným locale s desetinnou čárkou) se cena `1.5` vypíše jako `1,5` a reward příkaz typu `eco give {uuid} {price}` ji nemusí přijmout. Celé ceny se to netýká (bez oddělovače tisíců). [ověřeno testem `decimalSeparatorFollowsServerLocale`, nalezeno v kroku 3] | `DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.ROOT))`, aspoň pro příkazy. Krok 6 nebo 9. | S |
-| 🟡 HUNT-033 (1.3.6) | E/F | `util/Permissions.java`, README | `CobblemonPermission` přidává k uzlu prefix `cobblemon.` (`getLiteral()` = `"cobblemon." + node`, ověřeno v bytecode 1.8.0 i 1.8.4 a testem). LuckPerms tedy vidí `cobblemon.hunt.reload`, ne `hunt.reload`, jak tvrdilo README. Uzly nastavené podle README (`hunt.*`) nic neudělají: povolení se neuplatní (platí jen OP level) a zákaz taky ne. [ověřeno testem `permissionNodesHaveTheCobblemonPrefix`, nalezeno v kroku 5] | **Rozhodnutí provozovatele (2026-11-02):** přejít na `hunt.*` (v LuckPerms nejsou žádné uzly Hunt nastavené). Opraveno v 1.3.6 přes vlastní `HuntPermission` bez prefixu, viz kapitola 14. | S |
+| ✅ HUNT-033 (opraveno v 1.3.6) | E/F | `util/Permissions.java`, README | `CobblemonPermission` přidává k uzlu prefix `cobblemon.` (`getLiteral()` = `"cobblemon." + node`, ověřeno v bytecode 1.8.0 i 1.8.4 a testem). LuckPerms tedy vidí `cobblemon.hunt.reload`, ne `hunt.reload`, jak tvrdilo README. Uzly nastavené podle README (`hunt.*`) nic neudělají: povolení se neuplatní (platí jen OP level) a zákaz taky ne. [ověřeno testem `permissionNodesHaveTheCobblemonPrefix`, nalezeno v kroku 5] | **Rozhodnutí provozovatele (2026-11-02):** přejít na `hunt.*` (v LuckPerms nejsou žádné uzly Hunt nastavené). Opraveno v 1.3.6 přes vlastní `HuntPermission` bez prefixu, viz kapitola 14. | S |
 | HUNT-031 | E | `config/Config.java:82-87` | `requireSection` chytí jen explicitní `null`. Chybějící klíč sekce (např. smazané celé `"rewards"`) Gson doplní z no-arg konstruktoru, takže platí **výchozí odměny** (100–1000 a diamanty) bez varování. [ověřeno testem `missingSectionGetsDefaults`, nalezeno v kroku 3] | Ve validaci (krok 6) vyžadovat přítomnost klíčů `economy`, `rarity`, `rewards`, `customPrices`, nebo aspoň WARN. | S |
 
 ### Latentní (individualHunts=false, revize 1)
@@ -720,7 +720,9 @@ Odhad: ~8 souborů, ~80 změněných řádků, náročnost **S**.
 
 ---
 
-## 14. HUNT-033: uzly oprávnění bez prefixu (1.3.6) · 🟡 IMPLEMENTOVÁNO, čeká na test na serveru
+## 14. HUNT-033: uzly oprávnění bez prefixu (1.3.6) · ✅ HOTOVO, otestováno a nasazeno
+
+**Stav:** Změny A–E z 14.1 jsou implementované, build i test na serveru (14.2, scénáře a–e) prošly a 1.3.6 je nasazená na produkci (2026-11-02).
 
 **Cíl:** Uzly oprávnění jsou `hunt.base`, `hunt.reload` atd., jak je odjakživa uvádělo README. Dosud je `CobblemonPermission` měnil na `cobblemon.hunt.*` (HUNT-033).
 **Rozhodnutí provozovatele (2026-11-02):** přejít na `hunt.*`. V LuckPerms nejsou žádné uzly Hunt nastavené, takže změna nic nerozbije.
@@ -737,7 +739,7 @@ Odhad: ~8 souborů, ~80 změněných řádků, náročnost **S**.
 
 ### 14.2 Ověření
 1. ✅ `bash ./gradlew build`: zelený, 161 testů. Mutace „`getLiteral()` zase s prefixem `cobblemon.`“ shodí 4 testy.
-2. ⬜ **Testovací server (LuckPerms):**
+2. ✅ **Testovací server (LuckPerms)** (prošlo 2026-11-02):
    - a) Hráč bez OP s `lp user <hráč> permission set hunt.refresh true` → `/hunt refresh` funguje. S `cobblemon.hunt.refresh` (bez `hunt.refresh`) nefunguje.
    - b) `lp user <hráč> permission set hunt.base false` → `/hunt` i `/hunts` vypíšou hlášku o oprávnění, `/hunt stats` funguje.
    - c) `lp user <hráč> permission set hunt.stats false` → `/hunt stats` není dostupný.
