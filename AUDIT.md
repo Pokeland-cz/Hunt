@@ -14,7 +14,8 @@ Značení: **[ověřeno]** = viděno v kódu Hunt nebo ve zdrojácích/bytecode 
 | 0 – hotfix bezpečnosti (kapitola 9) | ✅ **Hotovo a otestováno (1.3.2)** | Body A–I z 9.1 hotové. Ověření 9.2/1 (build, `-Xlint`), 9.2/2 (`PlayerNames` + `String.replace`) a 9.2/3 (testovací server) prošlo (2026-11-02). Na produkci nasazeno 2026-11-02 jako součást 1.3.3. |
 | 1 – log výplat (HUNT-014) | ✅ **Hotovo a otestováno (1.3.2)** | Každé splnění zapíše řádek do `config/hunt/payouts.log` (JSON Lines) a INFO do `latest.log`. Nově se loguje i `success=false` od ekonomiky (WARN, `DECLINED`). Vyšlo s krokem 0, na produkci nasazeno 2026-11-02 jako součást 1.3.3. Build zelený, test na serveru (9.2/3 g–l) prošel (2026-11-02). |
 | 2 – config se nesmí přepsat (HUNT-004, 012, 016) | ✅ **Hotovo a otestováno (1.3.3)** | Chybný `config.json` na startu Hunt pozastaví (žádné hunty ani odměny, ERROR „PAUSED“). Reload s chybou ponechá starý config a ohlásí to adminovi. Config, lang, hunts i stats se zapisují atomicky přes `FileStore` s rotujícími zálohami `.bak.1–3`. `FileStore.read` rozlišuje „neexistuje“ a „nejde přečíst“. Migrace langu bere texty ze souboru. Build zelený (`-Xlint:all` bez nových varování), offline kontrola parserů a `FileStore` prošla (2026-11-02). Test na testovacím serveru (10.2/2, scénáře a–t) proběhl a prošel (2026-11-02), rotace záloh ověřena i na souborech po restartu. **Nasazeno na produkci (1.3.3) 2026-11-02.** Viz kapitola 10. |
-| 3–9 | ⬜ Neprovedeno | |
+| 3 – testy (HUNT-015, část) | ✅ **Hotovo (bez release)** | JUnit 5 v `common`, 114 testů v 7 třídách: substituce placeholderů a blokování příkazů (`Placeholders`, nově vyčleněno z `Utils`), `PlayerNames`, `RarityConfig.getRandomRarity` (injektovaný `RandomGenerator`), `Config.parse`, `Lang.parse` a `FileStore`. `bash ./gradlew build` testy spouští a při selhání spadne. Mutační kontrola: 9 z 10 mutací zachyceno, 1 je ekvivalentní (2026-11-02). Runtime chování se nemění, vyjde s krokem 4. Nové nálezy HUNT-030, HUNT-031 a HUNT-032. Viz kapitola 11. |
+| 4–9 | ⬜ Neprovedeno | |
 
 ---
 
@@ -91,7 +92,7 @@ Ověřeno také: `forcedAspects` setter → `updateAspects()` → `aspects` sett
 
 - `./gradlew build` nejde spustit, protože `gradlew` nemá executable bit (`operace zamítnuta`). Spuštěno přes `bash ./gradlew build`: **BUILD SUCCESSFUL**.
 - Rebuild `--rerun-tasks` s `-Xlint:all` (přes init skript v /tmp, projekt beze změny): **0 varování v `common` a `fabric`**, 1 varování ve `forge` (`HuntForge.java:19` `[this-escape]`). Žádné deprecated Java API.
-- **Testy: žádné.** `compileTestJava NO-SOURCE` / `test NO-SOURCE` ve všech modulech. V `test-data/stats.json` (untracked) jsou jen ukázková data.
+- **Testy: žádné.** `compileTestJava NO-SOURCE` / `test NO-SOURCE` ve všech modulech. V `test-data/stats.json` (untracked) jsou jen ukázková data. *Krok 3: `common` má 114 JUnit 5 testů (kapitola 11), `fabric` a `forge` zůstávají `NO-SOURCE`.*
 - Gradle deprecation (rozbije přechod na Gradle 9/10): `archivesBaseName` (`build.gradle:33`), `BasePluginConvention`, `JavaPluginConvention` a `ConfigureUtil` (shadow plugin 7.1.2 ve `fabric/build.gradle:2`), Groovy „space assignment“ (`settings.gradle:3-5`, `build.gradle:47,58`, `fabric/build.gradle:22-23`, `forge/build.gradle:20`).
 - Závislosti: `gooeylibs 3.1.0-SNAPSHOT` a `impactor 5.3.0-SNAPSHOT` jsou SNAPSHOT, takže build není reprodukovatelný. Shadow plugin `com.github.johnrengelman.shadow 7.1.2` je zastaralý (nástupce `com.gradleup.shadow`). Kotlin plugin 2.2.0 se aplikuje, ale v projektu není žádný Kotlin.
 - V gradle cache je i `cobblemon-1.8.4+1.21.1`. Pokud běží produkce na 1.8.4, kompilace proti 1.8.0 projde (API ověřeno výše), ale je vhodné bumpnout.
@@ -215,6 +216,13 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 #### HUNT-015 · Žádné testy a všudypřítomný statický stav · F · [ověřeno]
 - Projekt nemá ani jeden test. Doménová logika (`CurrentHunts`, `SingleHunt.matches`, výběr rarity) sahá přímo na `Hunt.config`, `Hunt.server`, `Hunt.broadcaster` a `Hunt.storage`, takže ji nejde testovat bez běžícího serveru. Každá oprava proto nese riziko regrese.
 - **Oprava:** Viz kapitola 7 (doménové jádro bez MC importů + JUnit 5). **M–L**.
+- **Stav po kroku 3:** JUnit 5 v `common` pokrývá substituci, výběr rarity, parsování configu a langu a `FileStore` (kapitola 11). Matching, generování huntů a výplatní tok zatím testy nemají. Výplatní tok přijde s `CompletionService` v kroku 4.
+
+#### HUNT-032 · Config bez `version` přepne ekonomiku na Impactor a měnu na výchozí · C/E · [ověřeno testem, nalezeno v kroku 3]
+- **Kde:** `config/Config.java:106-119`, `old/ConfigOld.java:30`.
+- **Popis:** Když v jinak aktuálním `config.json` chybí `version` (třeba omylem smazaný řádek), projde soubor migrací ze starého formátu. Ta nastaví `economy = IMPACTOR` a `currencyName` vezme z `ConfigOld.impactorCurrencyName`. Gson ale pole naplní z no-arg konstruktoru `ConfigOld()` (`"impactor:huntcoins"`), takže kontrola `!= null` nikdy neplatí a měna ze souboru se ztratí. Config se označí jako `upgraded` a **přepíše se** (originál zůstane v `.bak.1`). Výplaty pak jdou v jiné měně nebo přes jinou ekonomiku, případně skončí `ERROR`, pokud měna `huntcoins` neexistuje. V `latest.log` ani v chatu se to nijak neohlásí. Před krokem 2 se v tomto případě přepsal celý config, takže jde o zbytek HUNT-004.
+- **Doklad:** `ConfigParseTest.missingVersionResetsEconomyAndCurrency` (dokumentuje současné chování, po opravě se test otočí).
+- **Oprava:** Migrovat jen tehdy, když soubor opravdu má starý formát (obsahuje `impactorCurrencyName` a nemá `economy` / `currencyName`). Jinak jen doplnit verzi, hodnoty ponechat a zalogovat WARN. Doporučuji v kroku 6 (validace). **S**.
 
 #### ✅ HUNT-016 · [opraveno v 1.3.3, krok 2] · Nesoulad verze lang.json zapíše výchozí texty · C · [ověřeno]
 - **Kde:** `config/Lang.java:125-139`. Když `version` chybí nebo nesedí, nastaví se pole z `new LangOld()` (výchozí, **ne ze souboru**) a zavolá se `write()`. V paměti se pak použijí hodnoty ze souboru, ale na disku zůstanou výchozí texty a po dalším restartu je překlad pryč.
@@ -237,6 +245,8 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 | HUNT-027 | A/F | `command/basecommand/HuntCommand.java:127,161-163` | GUI je statické (čas se neaktualizuje). Hráči se zobrazuje `e.getMessage()` (interní detaily). GooeyLibs `GooeyContainer` přepisuje `clicked()` i `quickMoveStack()` a volá `patchDesyncs` [ověřeno v bytecode], takže vytažení itemů je nepravděpodobné a GUI nemá akce. **Doporučuji ruční test** (shift-click, čísla 1–9, drag, double-click, Q, zavření při lagu). | Generická hláška hráči. | S |
 | HUNT-028 | E | `stats/HuntStats.java:99-103` | `/hunt stats <jméno>` vrací první shodu bez ohledu na velikost písmen. Offline mode umožní `Steve` i `steve` jako dva účty se dvěma UUID. [ověřeno] | Preferovat přesnou shodu, umožnit zadat UUID. | S |
 | HUNT-029 | B | `Hunt.java:86-91` | Vanilla `/reload` (datapacky) neobnoví `SpawnRates`. Hunty drží staré `Species` objekty (matching jede přes jména, takže funkčně OK). [ověřeno] | Hook na `END_DATA_PACK_RELOAD`. | S |
+| HUNT-030 | A | `util/Placeholders.java:43` (dříve `Utils.formatPlaceholders`) | `{price}` formátuje `DecimalFormat("0.##")` podle locale JVM. Na serveru s `cs_CZ` (nebo jiným locale s desetinnou čárkou) se cena `1.5` vypíše jako `1,5` a reward příkaz typu `eco give {uuid} {price}` ji nemusí přijmout. Celé ceny se to netýká (bez oddělovače tisíců). [ověřeno testem `decimalSeparatorFollowsServerLocale`, nalezeno v kroku 3] | `DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.ROOT))`, aspoň pro příkazy. Krok 6 nebo 9. | S |
+| HUNT-031 | E | `config/Config.java:82-87` | `requireSection` chytí jen explicitní `null`. Chybějící klíč sekce (např. smazané celé `"rewards"`) Gson doplní z no-arg konstruktoru, takže platí **výchozí odměny** (100–1000 a diamanty) bez varování. [ověřeno testem `missingSectionGetsDefaults`, nalezeno v kroku 3] | Ve validaci (krok 6) vyžadovat přítomnost klíčů `economy`, `rarity`, `rewards`, `customPrices`, nebo aspoň WARN. | S |
 
 ### Latentní (individualHunts=false, revize 1)
 Tyto nálezy se projeví až po zapnutí `individualHunts`. Kód je dnes nepoužívá, ale **před zapnutím režimu je nutné je opravit**. Kdyby se zapnul bez oprav, vrací se na Vysokou.
@@ -258,7 +268,7 @@ Tyto nálezy se projeví až po zapnutí `individualHunts`. Kód je dnes nepouž
 
 ### Otevřené otázky (nutné zjistit na serveru)
 1. ~~Je zapnuté `individualHunts`?~~ **Odpověď: ne.** HUNT-005 a HUNT-006 jsou latentní.
-2. ~~Proxy a validace jmen?~~ **Odpověď:** Velocity (znaky nekontroluje, ověřeno), AuthMe `[a-zA-Z0-9_]*`. **Zbývá ověřit:** podmínky 2–4 z HUNT-001 (Velocity `try` a forced-hosts, přímý přístup na backend, přepnutí serveru před přihlášením).
+2. ~~Proxy a validace jmen?~~ **Odpověď:** Velocity (znaky nekontroluje, ověřeno), AuthMe `[a-zA-Z0-9_]*`. Podmínky 2–4 z HUNT-001 (Velocity `try` a forced-hosts, přímý přístup na backend, přepnutí serveru před přihlášením) provozovatel **ověřil, všechny platí**.
 3. ~~Reward příkazy a převoditelnost měny?~~ **Odpověď:** `{player}` se používá, měna je převoditelná.
 4. Jaký storage backend používá Impactor (HUNT-011)?
 5. Které módy spawnují chytatelné divoké Pokémony (HUNT-010)?
@@ -376,7 +386,7 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 | 0 | ✅ **HOTOVO (1.3.2)** · **Hotfix bezpečnosti:** substituce placeholderů přes `String.replace` (literál), validace jména `^[A-Za-z0-9_]{1,16}$` před spuštěním příkazů (při neshodě příkazy přeskočit + WARN), nový placeholder `{uuid}`; `try/catch (Throwable)` kolem celého capture handleru, `Hunt.check()` a každého `HuntEvents` listeneru | 001, 002, 003 | S |
 | 1 | ✅ **HOTOVO (1.3.2)** · **Log výplat:** jeden INFO řádek na completion (`uuid, jméno, huntId, druh/forma, bucket, cena, výsledek ekonomiky, provedené příkazy`), ideálně do `config/hunt/payouts.log` | 014 | S |
 | 2 | ✅ **HOTOVO (1.3.3)** · **Config se nesmí přepsat:** rozlišit „neexistuje“ a „nečitelný“; při chybě parsování na startu běžet bez odměn + ERROR, při `/hunt reload` ponechat starý config; config a lang zapisovat přes `FileStore` (atomicky); opravit migraci langu; `FileStore.read` při IOException neházet „soubor neexistuje“ | 004, 012, 016 | M |
-| 3 | **Testy:** JUnit 5 v `common`; testy substituce (`@a`, `Ash$1`, `a\`, `x;y`, `"`), `RarityConfig.getRandomRarity`, načítání rozbitého configu | 015 (část) | S |
+| 3 | ✅ **HOTOVO** · **Testy:** JUnit 5 v `common`; testy substituce (`@a`, `Ash$1`, `a\`, `x;y`, `"`), `RarityConfig.getRandomRarity`, načítání rozbitého configu | 015 (část) | S |
 | 4 | **`CompletionService`:** vyčlenit výplatní tok z `CaptureEvent` (claim → log PENDING → ekonomika → příkazy jen při úspěchu → log DONE → stats), po completion vynutit uložení `hunts.json`; testy (selhání ekonomiky, dvojí completion) | 007 | M |
 | 5 | **Oprávnění:** `requires` přes `CommandSourceStack` místo `isPlayer() ? check : true`; sjednotit `/hunt` a `/hunts` a opravit README | 009, 017 | S |
 | 6 | **Validace configu** s jasnými hláškami (`huntDuration > 0`, `huntAmount 1–28`, váhy, `economy`, ceny, existence druhů v `customPrices` a `blacklist`) | 008 | M |
@@ -392,8 +402,8 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 
 ## 8. Doporučené pořadí dalších kroků
 
-1. **Hned: ověřit podmínky 2–4 z HUNT-001** (`velocity.toml` `try`/forced-hosts, přímý přístup na port backendu, přepnutí serveru před přihlášením) a udělat test na testovací instanci se jménem `Test$1`. AuthMe má regex `[a-zA-Z0-9_]*`, takže pokud tyto tři podmínky platí, je server dnes chráněný a stačí bod 3.
-2. **Jen pokud ověření selže** (hráč se jménem mimo `[A-Za-z0-9_]` se dostane na Cobblemon server): okamžitě odstranit `{player}` z `captureHuntBroadcast` v `lang.json` a z reward příkazů, pak `/hunt reload`. Odměny přes příkazy tím do hotfixu přestanou fungovat. Placeholder `{uuid}` (vanilla `give` UUID přijme) přidá až krok 0.
+1. ✅ **Hotovo: podmínky 2–4 z HUNT-001 ověřeny, všechny platí** (viz HUNT-001, stav po revizi 2). Původní zadání: **ověřit podmínky 2–4 z HUNT-001** (`velocity.toml` `try`/forced-hosts, přímý přístup na port backendu, přepnutí serveru před přihlášením) a udělat test na testovací instanci se jménem `Test$1`. AuthMe má regex `[a-zA-Z0-9_]*`, takže pokud tyto tři podmínky platí, je server dnes chráněný a stačí bod 3.
+2. ~~**Jen pokud ověření selže**~~ *(nebylo potřeba, ověření prošlo)* (hráč se jménem mimo `[A-Za-z0-9_]` se dostane na Cobblemon server): okamžitě odstranit `{player}` z `captureHuntBroadcast` v `lang.json` a z reward příkazů, pak `/hunt reload`. Odměny přes příkazy tím do hotfixu přestanou fungovat. Placeholder `{uuid}` (vanilla `give` UUID přijme) přidá až krok 0.
 3. **Kroky 0 a 1 jako jeden hotfix release.** ✅ Nasazeno 2026-11-02 (v 1.3.3 spolu s krokem 2). Po nasazení 1–2 dny sledovat `payouts.log`. Měna je převoditelná, takže log je jediný způsob, jak zpětně najít případné zneužití.
 4. Krok 2 (config) před další úpravou `config.json` na produkci. **Hotovo, otestováno a nasazeno v 1.3.3 (2026-11-02)** (kapitola 10).
 5. Kroky 3–4 (testy a `CompletionService`), pak 5–6.
@@ -536,3 +546,42 @@ Změněno 16 souborů a 1 nový (+494 / −402 řádků).
 - **Rotace jednou za běh:** v singleplayeru se statická množina rotovaných souborů mezi světy nemaže. Týká se jen počtu záloh.
 - **Odchylky:** `HuntStats.init()` se volá v `load()` před kontrolou configu, ne v `start()`, aby `/hunt stats` a `/hunt top` fungovaly i při pauze. Stats se při pauze nemění a neukládají (`stop()` gatuje `loaded`). `RefreshCommand` hlídá pauzu i u individuálního refreshe.
 
+
+---
+
+## 11. Plán kroku 3: JUnit 5 testy · ✅ HOTOVO (bez samostatného release)
+
+**Stav:** Změny A–K z 11.1 jsou implementované a ověření z 11.2 prošlo (2026-11-02). `mod_version` zůstává `1.3.3`: runtime chování se nemění (refaktor je čistá delegace), takže se krok nasadí až s krokem 4.
+
+**Cíl:** Opakovatelná síť proti regresím v místech, kde vznikaly exploity a ztráty dat (HUNT-001, 002, 004, 012, 016), ještě před krokem 4, který mění výplatní tok. Jednorázové skripty z 9.2/2 a 10.2/1b jsou teď testy v buildu.
+**Mimo rozsah:** matching (`SingleHunt.matches`), generování huntů (`CurrentHunts`), `HuntStats`, `HuntStorage` a výplatní tok. Ty závisí na Cobblemon objektech nebo statickém `Hunt.*` a přijdou s `CompletionService` (krok 4).
+
+### 11.1 Změny po souborech
+| # | Soubor | Změna |
+|---|---|---|
+| A | `common/build.gradle` | JUnit BOM `5.14.4` (poslední 5.x), `junit-jupiter`, `junit-platform-launcher` (`testRuntimeOnly`, Gradle 8.14 ho vyžaduje). `test { useJUnitPlatform() }`, `workingDir = build/test-run` (před během se vyprázdní, `FileStore` zapisuje relativně do `config/hunt`), výpis selhání s plným stacktracem. |
+| B | nový `util/Placeholders.java` | Čistá třída bez MC importů: `fill(template, playerName, uuid, pokemonName, price)` se stejnou sémantikou jako dřívější `formatPlaceholders`, a `commandAllowed(template, playerName)`. |
+| C | `util/Utils.java` | `formatPlaceholders` jen vytáhne jméno, UUID a display name a deleguje na `Placeholders.fill`. `runCommands` volá `Placeholders.commandAllowed`. Logy, `CommandResult` a pořadí jsou beze změny. |
+| D | `config/RarityConfig.java` | Přetížení `getRandomRarity(Predicate<Bucket>, RandomGenerator)`. Původní metody delegují s `ThreadLocalRandom.current()`. |
+| E | test `util/PlaceholdersTest` (33) | Jména `@a`, `Ash$1`, `a$b`, `Ash\`, `x;y`, `a"b`, `@e[type=player]`, `$0`, `\$1`… se dosadí doslova a nic nevyhodí. Příkaz s `{player}` je blokovaný pro každé nebezpečné jméno i `null`. Příkaz s `{uuid}` projde. Dál `null` šablona, chybějící hodnoty, opakované placeholdery, formát ceny (`1000` bez oddělovače, `1.257` → `1.26`) a doklad HUNT-030 (`cs-CZ` → `1,5`). |
+| F | test `util/PlayerNamesTest` (22) | Hranice 1 a 16 znaků, 17 znaků, prázdné jméno, `null`, mezera, `§`, diakritika, selektory a speciální znaky. |
+| G | test `config/RarityConfigTest` (10) | Hranice bucketů pro váhy 60/30/9/1 (roll 0/59/60/89/90/98/99) a `bound == 100`. Nulové a záporné váhy, filtr vylučující vše, filtr bez COMMON (`bound == 40`), jediný kladný bucket. Rozdělení ze 100 000 losů se seedem 42 v toleranci ±1 p. b. Config se staví přes Gson stejně jako při načítání. |
+| H | test `config/ConfigParseTest` (29) | Scénáře z 10.2/1b: výchozí config, vlastní hodnoty, prázdný soubor / `[]` / `"text"` / `42` / `null` → výjimka, chybějící čárka (zpráva s „line“), useknutý soubor, `null` v každé ze 6 povinných sekcí, text v číselném poli, neznámá `economy`, sekce špatného typu, `huntAmount` 40 → 28, prázdné `packIconItem`, chybějící ikonové volby → `upgraded`, migrace z 1.2.2 s `impactorCurrencyName`, chybějící `version`, lenientní syntax (komentář, klíč bez uvozovek). Doklady HUNT-031 a HUNT-032. |
+| I | test `config/LangParseTest` (10) | Nečitelný soubor → výjimka. Verze `0.9` a soubor bez verze a bez `stats*`/`top*` → vlastní texty zachované, verze `1.0.0`, nové klíče z defaultů, totéž v `toJson()` pro přepis. |
+| J | test `util/FileStoreTest` (9) | `Missing`. `Ok` s UTF-8 obsahem (`§`, `é`). `Failed` pro adresář a pro neplatné UTF-8, bez `chmod`, takže funguje i pod rootem. Žádný `.tmp`. Nový soubor bez `.bak`. První přepis → `.bak.1` = originál, další přepis v témže běhu `.bak.1` nemění. Posun `.bak.1–3` bez `.bak.4`. 50 `appendAsync` řádků ve správném pořadí, `writeSync` na ně počká, append se nerotuje. |
+| — | test `HuntInitTest` (1) | Statická inicializace `Hunt` (Permissions, Broadcaster, SpawnRates…) projde bez serveru a bez bootstrapu MC. |
+
+Změněny 3 soubory, přibyl 1 produkční a 7 testových souborů (~700 řádků testů).
+
+### 11.2 Ověření
+1. ✅ `bash ./gradlew build`: zelený, `:common:test` 114 testů, 0 failed, 0 skipped. `fabric:test` a `forge:test` `NO-SOURCE`.
+2. ✅ `--rerun-tasks` s `-Xlint:all` (init skript ve scratchpadu): v produkčním kódu žádné nové varování, zůstává jen známé `[this-escape]` v `HuntForge`. Při kompilaci testů hlásí `-Xlint:processing` „No processor claimed…“ (loom přidává annotation processor i do testů). Neškodí a v běžném buildu se neobjevuje.
+3. ✅ **Mutační kontrola** (dočasná změna kódu → testy musí spadnout → vrácení): `replace` → `replaceAll` (5 failed), `commandAllowed` bez kontroly jména (10), `commandAllowed` blokuje i příkazy bez `{player}` (1), off-by-one v `nextInt` (5), záporné váhy se nesčítají jako 0 (1), povolené `"rewards": null` (1), migrace langu z defaultů (2), rotace při každém zápisu (1), `IOException` → `Missing` (2). Přežila jen mutace „vypnout kontrolu `isJsonObject()`“. Je ekvivalentní: `getAsJsonObject()` pak hodí `IllegalStateException`, ze které vznikne stejná `ConfigLoadException`.
+4. Testovací server není potřeba: změna `Utils` je jen delegace. Regresi hlídá 9.2/3 a), g) při testu kroku 4.
+
+### 11.3 Rizika a odchylky od plánu
+- **Žádný fallback nebyl potřeba:** `Hunt` se v testu inicializuje bez serveru a loom dává MC a Cobblemon na test classpath. `Config`, `Lang` a `FileStore` proto dál používají `Hunt.LOGGER`.
+- **Odchylka:** JUnit `5.14.4` místo plánovaného `5.13.4` (novější 5.x na Maven Central). Mutační kontrola má navíc mutace pro `commandAllowed`, záporné váhy, `Lang` a `FileStore`.
+- **Nové nálezy:** HUNT-030 (locale `{price}`, Nízká), HUNT-031 (chybějící sekce → výchozí odměny, Nízká), HUNT-032 (config bez `version` → změna ekonomiky a měny, Střední). Testy zatím **dokumentují současné chování** (jsou to doklady, ne požadavky) a při opravě se otočí. Doporučuji opravit v kroku 6.
+- **`FileStore.ROTATED` je statická** pro celý test JVM, takže testy rotace používají unikátní názvy souborů a ověřují jen jeden „běh“. Scénář přes 4 restarty zůstává ověřený ručně (10.2/2 q).
+- **Síť:** první build stáhne JUnit z Maven Central (v gradle cache nebyl).

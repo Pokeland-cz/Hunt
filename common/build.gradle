@@ -14,6 +14,25 @@ dependencies {
     api("net.kyori:adventure-api:${rootProject.kyori_version}")
 
     implementation fileTree(dir: 'libs', includes: ['*.jar'])
+
+    testImplementation platform("org.junit:junit-bom:5.14.4")
+    testImplementation "org.junit.jupiter:junit-jupiter"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+test {
+    useJUnitPlatform()
+    // FileStore writes to config/hunt relative to the working directory, so tests get their own.
+    def runDir = layout.buildDirectory.dir("test-run").get().asFile
+    workingDir = runDir
+    doFirst {
+        delete runDir
+        runDir.mkdirs()
+    }
+    testLogging {
+        events "failed"
+        exceptionFormat "full"
+    }
 }
 
 architectury {

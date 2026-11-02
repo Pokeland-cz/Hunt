@@ -4,6 +4,7 @@ import org.pokesplash.hunt.hunts.Bucket;
 
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
+import java.util.random.RandomGenerator;
 
 public class RarityConfig {
 	private int common; // What rarity is classed as common.
@@ -57,6 +58,16 @@ public class RarityConfig {
 	 * @return the bucket, or null if no allowed bucket has a positive weight.
 	 */
 	public Bucket getRandomRarity(Predicate<Bucket> allowed) {
+		return getRandomRarity(allowed, ThreadLocalRandom.current());
+	}
+
+	/**
+	 * Picks a random bucket using the configured weights, only considering buckets that pass the filter.
+	 * @param allowed filter for the buckets that can be picked.
+	 * @param random the source of randomness.
+	 * @return the bucket, or null if no allowed bucket has a positive weight.
+	 */
+	public Bucket getRandomRarity(Predicate<Bucket> allowed, RandomGenerator random) {
 		int total = 0;
 		for (Bucket bucket : Bucket.values()) {
 			if (allowed.test(bucket)) {
@@ -68,7 +79,7 @@ public class RarityConfig {
 			return null;
 		}
 
-		int roll = ThreadLocalRandom.current().nextInt(total);
+		int roll = random.nextInt(total);
 		for (Bucket bucket : Bucket.values()) {
 			if (!allowed.test(bucket)) {
 				continue;

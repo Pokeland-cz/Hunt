@@ -11,7 +11,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import org.pokesplash.hunt.Hunt;
 
-import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -97,26 +96,10 @@ public abstract class Utils {
 	 * so characters such as $ or \ in a name can't break the substitution.
 	 */
 	public static String formatPlaceholders(String message, ServerPlayer player, Pokemon pokemon, double price) {
-		if (message == null) {
-			return "";
-		}
-		String newMessage = message;
-
-		if (player != null) {
-			newMessage = newMessage.replace("{player}", player.getName().getString());
-			newMessage = newMessage.replace("{uuid}", player.getUUID().toString());
-		}
-
-		if (pokemon != null) {
-			newMessage = newMessage.replace("{pokemon}", pokemon.getDisplayName(true).getString());
-		}
-
-		if (price != -1) {
-			DecimalFormat df = new DecimalFormat("0.##");
-			newMessage = newMessage.replace("{price}", df.format(price));
-		}
-
-		return newMessage;
+		String name = player == null ? null : player.getName().getString();
+		String uuid = player == null ? null : player.getUUID().toString();
+		String pokemonName = pokemon == null ? null : pokemon.getDisplayName(true).getString();
+		return Placeholders.fill(message, name, uuid, pokemonName, price);
 	}
 
 	public static ItemStack parseItemId(String id) {
@@ -143,7 +126,7 @@ public abstract class Utils {
 			}
 			String formatted = command;
 			try {
-				if (player != null && command.contains("{player}") && !PlayerNames.isCommandSafe(name)) {
+				if (player != null && !Placeholders.commandAllowed(command, name)) {
 					Hunt.LOGGER.warn("Skipped hunt reward command \"" + command + "\" for player " + player.getUUID()
 							+ " (name \"" + name + "\"): the name is not safe to use in a command. "
 							+ "Use {uuid} instead of {player} where the command accepts it.");
