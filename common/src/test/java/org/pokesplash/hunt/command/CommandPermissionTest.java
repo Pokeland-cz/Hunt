@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * HUNT-009 and HUNT-017: who can use which /hunt subcommand. The command tree is registered into its own
  * dispatcher and only parsed, never run. The fake validator works like fabric-permissions-api without
  * LuckPerms data for the source: a granted node passes, otherwise the source's OP level decides.
- * Nodes are the literal LuckPerms sees, with Cobblemon's "cobblemon." prefix.
+ * Nodes are the literal LuckPerms sees (hunt.reload, no "cobblemon." prefix).
  */
 class CommandPermissionTest {
 
@@ -101,7 +101,7 @@ class CommandPermissionTest {
 
 	@Test
 	void grantedNodeAllowsWithoutOp() {
-		granted.add("cobblemon.hunt.refresh");
+		granted.add("hunt.refresh");
 		assertTrue(canUse("hunt refresh", 0));
 		assertTrue(canUse("hunts refresh", 0));
 		assertFalse(canUse("hunt reload", 0));
@@ -111,16 +111,16 @@ class CommandPermissionTest {
 	@Test
 	void aliasDoesNotCheckHuntBase() {
 		canUse("hunts stats", 0);
-		assertFalse(sourceChecks.contains("cobblemon.hunt.base"));
-		assertTrue(sourceChecks.contains("cobblemon.hunt.stats"));
+		assertFalse(sourceChecks.contains("hunt.base"));
+		assertTrue(sourceChecks.contains("hunt.stats"));
 	}
 
 	@Test
 	void eachSubcommandChecksItsOwnNode() {
 		canUse("hunt reload", 0);
 		canUse("hunt top", 0);
-		assertTrue(sourceChecks.contains("cobblemon.hunt.reload"));
-		assertTrue(sourceChecks.contains("cobblemon.hunt.top"));
+		assertTrue(sourceChecks.contains("hunt.reload"));
+		assertTrue(sourceChecks.contains("hunt.top"));
 	}
 
 	@Test
@@ -128,15 +128,15 @@ class CommandPermissionTest {
 		assertThrows(IllegalArgumentException.class, () -> Hunt.permissions.requires("HuntTypo"));
 	}
 
-	// HUNT-033: CobblemonPermission prefixes the node with "cobblemon.", so these are the nodes LuckPerms sees.
+	// HUNT-033: the nodes LuckPerms sees are used as written. Cobblemon's CobblemonPermission would add "cobblemon.".
 	@Test
-	void permissionNodesHaveTheCobblemonPrefix() {
-		assertEquals("cobblemon.hunt.base", Hunt.permissions.getPermission("HuntBase").getLiteral());
-		assertEquals("cobblemon.hunt.notify", Hunt.permissions.getPermission("HuntNotify").getLiteral());
-		assertEquals("cobblemon.hunt.stats", Hunt.permissions.getPermission("HuntStats").getLiteral());
-		assertEquals("cobblemon.hunt.top", Hunt.permissions.getPermission("HuntTop").getLiteral());
-		assertEquals("cobblemon.hunt.reload", Hunt.permissions.getPermission("HuntReload").getLiteral());
-		assertEquals("cobblemon.hunt.refresh", Hunt.permissions.getPermission("HuntRefresh").getLiteral());
+	void permissionNodesHaveNoPrefix() {
+		assertEquals("hunt.base", Hunt.permissions.getPermission("HuntBase").getLiteral());
+		assertEquals("hunt.notify", Hunt.permissions.getPermission("HuntNotify").getLiteral());
+		assertEquals("hunt.stats", Hunt.permissions.getPermission("HuntStats").getLiteral());
+		assertEquals("hunt.top", Hunt.permissions.getPermission("HuntTop").getLiteral());
+		assertEquals("hunt.reload", Hunt.permissions.getPermission("HuntReload").getLiteral());
+		assertEquals("hunt.refresh", Hunt.permissions.getPermission("HuntRefresh").getLiteral());
 	}
 
 	@Test

@@ -1,7 +1,7 @@
 package org.pokesplash.hunt.util;
 
 import com.cobblemon.mod.common.Cobblemon;
-import com.cobblemon.mod.common.api.permission.CobblemonPermission;
+import com.cobblemon.mod.common.api.permission.Permission;
 import com.cobblemon.mod.common.api.permission.PermissionLevel;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.level.ServerPlayer;
@@ -14,7 +14,7 @@ import java.util.function.Predicate;
  */
 public class Permissions {
 	// Store all created permissions in a hashmap.
-	private HashMap<String, CobblemonPermission> permissions;
+	private HashMap<String, Permission> permissions;
 
 	/**
 	 * Constructor to create a permission object. Add your permissions here using the private method.
@@ -38,7 +38,7 @@ public class Permissions {
 	 * @param permissionLevel The permission level.
 	 */
 	private void createPermission(String name, String permissionNode, int permissionLevel) {
-		permissions.put(name, new CobblemonPermission(permissionNode, parsePermission(permissionLevel)));
+		permissions.put(name, new HuntPermission(permissionNode, parsePermission(permissionLevel)));
 	}
 
 	/**
@@ -46,11 +46,11 @@ public class Permissions {
 	 * @param name The reference of the permission.
 	 * @return
 	 */
-	public CobblemonPermission getPermission(String name) {
+	public Permission getPermission(String name) {
 		return permissions.get(name);
 	}
 
-	public boolean hasPermission(ServerPlayer player, CobblemonPermission permission) {
+	public boolean hasPermission(ServerPlayer player, Permission permission) {
 		return Cobblemon.INSTANCE.getPermissionValidator().hasPermission(player, permission);
 	}
 
@@ -59,7 +59,7 @@ public class Permissions {
 	 * (LuckPerms, or their OP level). Anything else (console, command block, "execute as" a non-player)
 	 * needs the permission's OP level, so "execute as" a mob doesn't get around the permission.
 	 */
-	public boolean hasPermission(CommandSourceStack source, CobblemonPermission permission) {
+	public boolean hasPermission(CommandSourceStack source, Permission permission) {
 		return Cobblemon.INSTANCE.getPermissionValidator().hasPermission(source, permission);
 	}
 
@@ -69,7 +69,7 @@ public class Permissions {
 	 * @throws IllegalArgumentException if there's no such permission, so a typo fails at registration.
 	 */
 	public Predicate<CommandSourceStack> requires(String name) {
-		CobblemonPermission permission = permissions.get(name);
+		Permission permission = permissions.get(name);
 		if (permission == null) {
 			throw new IllegalArgumentException("Unknown Hunt permission: " + name);
 		}

@@ -24,16 +24,16 @@ A hunt mod for [Cobblemon](https://cobblemon.com/). Allows players to gain money
 
 | Command | Permission node | Default | Description |
 | --- | --- | --- | --- |
-| `/hunt` | `cobblemon.hunt.base` | everyone | Opens the hunt menu. Without this permission the menu doesn't open; the subcommands below are not affected. |
-| `/hunt stats [player]` | `cobblemon.hunt.stats` | everyone | Shows hunts completed, money earned and completions per rarity. Works for offline players. |
-| `/hunt top [completions\|earned]` | `cobblemon.hunt.top` | everyone | Shows the top 10 hunters. |
-| `/hunt refresh` | `cobblemon.hunt.refresh` | OP 2 | Re-rolls all global hunts. |
-| `/hunt refresh <player>` | `cobblemon.hunt.refresh` | OP 2 | Re-rolls a player's individual hunts. |
-| `/hunt reload` | `cobblemon.hunt.reload` | OP 2 | Reloads the configs. Current hunts are kept and trimmed or topped up to the hunt amount. A file that can't be loaded is left untouched and the previous version stays in use (see *Broken config files*). |
+| `/hunt` | `hunt.base` | everyone | Opens the hunt menu. Without this permission the menu doesn't open; the subcommands below are not affected. |
+| `/hunt stats [player]` | `hunt.stats` | everyone | Shows hunts completed, money earned and completions per rarity. Works for offline players. |
+| `/hunt top [completions\|earned]` | `hunt.top` | everyone | Shows the top 10 hunters. |
+| `/hunt refresh` | `hunt.refresh` | OP 2 | Re-rolls all global hunts. |
+| `/hunt refresh <player>` | `hunt.refresh` | OP 2 | Re-rolls a player's individual hunts. |
+| `/hunt reload` | `hunt.reload` | OP 2 | Reloads the configs. Current hunts are kept and trimmed or topped up to the hunt amount. A file that can't be loaded is left untouched and the previous version stays in use (see *Broken config files*). |
 
-`cobblemon.hunt.notify` (everyone) controls the individual-hunt messages.
+`hunt.notify` (everyone) controls the individual-hunt messages.
 
-Permissions go through Cobblemon, which adds the `cobblemon.` prefix, so in LuckPerms use the nodes as written above (e.g. `lp group admin permission set cobblemon.hunt.reload true`). Without a permissions mod, or if a node isn't set, the OP level in the *Default* column applies.
+Use the nodes as written above in LuckPerms, e.g. `lp group admin permission set hunt.reload true`. Without a permissions mod, or if a node isn't set, the OP level in the *Default* column applies. (Hunt 1.3.5 used `cobblemon.hunt.*` by mistake; since 1.3.6 the nodes are `hunt.*` again.)
 
 Permissions are checked for whoever runs the command. Players are checked by their permissions. The console (OP 4) and command blocks (OP 2) can run every command. Anything else, such as `/execute as <mob> run hunt refresh`, needs the OP level from the *Default* column, so `/execute` can't be used to get around a permission.
 
