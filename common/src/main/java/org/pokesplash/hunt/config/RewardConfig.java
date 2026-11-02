@@ -24,4 +24,8 @@ public class RewardConfig {
 	public ArrayList<String> getCommands() {
 		return commands;
 	}
+
+	void setCommands(ArrayList<String> commands) {
+		this.commands = commands;
+	}
 }

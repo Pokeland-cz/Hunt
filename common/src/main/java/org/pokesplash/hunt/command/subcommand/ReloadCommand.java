@@ -47,6 +47,9 @@ public class ReloadCommand extends Subcommand {
 				send(context, "§c[Hunt] " + error);
 			}
 		}
+		for (String warning : report.warnings()) {
+			send(context, "§e[Hunt] " + warning);
+		}
 		if (report.started()) {
 			send(context, "§a[Hunt] Config loaded, Hunt started.");
 		} else if (!Hunt.isActive()) {

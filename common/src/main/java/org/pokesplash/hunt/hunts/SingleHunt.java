@@ -15,8 +15,8 @@ import net.minecraft.resources.ResourceLocation;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.config.CustomPrice;
 import org.pokesplash.hunt.config.RewardConfig;
+import org.pokesplash.hunt.util.Placeholders;
 
-import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
@@ -225,8 +225,7 @@ public class SingleHunt {
 	}
 
 	public String getPriceAsString() {
-		DecimalFormat df = new DecimalFormat("0.##");
-		return df.format(price);
+		return Placeholders.formatPrice(price);
 	}
 
 	public Pokemon getPokemon() {

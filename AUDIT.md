@@ -18,7 +18,8 @@ Značení: **[ověřeno]** = viděno v kódu Hunt nebo ve zdrojácích/bytecode 
 | 4 – `CompletionService` (HUNT-007) | ✅ **Hotovo, otestováno a nasazeno (1.3.4)** | Výplatní tok je vyčleněný do `CompletionService` s injektovanými závislostmi. Pořadí: claim → okamžité uložení `hunts.json` → PENDING v `payouts.log` (fsync, synchronně) → výplata → příkazy jen při úspěchu → stats → DONE. Při selhání ekonomiky se příkazy přeskočí a hráč dostane `payFailedMessage`. Nedokončené výplaty se při startu jen nahlásí. 138 testů, mutační kontrola 10 z 10, test na serveru (12.4/3 a–g) prošel. **Na produkci nasazeno 2026-11-02.** Viz kapitola 12. |
 | 5 – oprávnění (HUNT-009, 017) | ✅ **Hotovo, otestováno a nasazeno (1.3.5)** | `reload`, `refresh`, `stats` a `top` kontrolují oprávnění u zdroje příkazu (`CommandSourceStack`), takže `execute as <mob>` už nic neobejde. `/hunts` je čistý alias, `hunt.base` řídí jen GUI. README uvádí skutečné uzly s prefixem `cobblemon.` (nový nález HUNT-033). 161 testů, mutační kontrola 6 z 6, test na serveru (13.4 a–f) prošel. **Na produkci nasazeno 2026-11-02.** Viz kapitola 13. |
 | HUNT-033 – uzly oprávnění | ✅ **Hotovo, otestováno a nasazeno (1.3.6)** | Uzly jsou zase `hunt.*` (bez prefixu `cobblemon.`), jak uvádělo původní README. Nová třída `HuntPermission` předává uzel Cobblemon validatoru beze změny. V LuckPerms provozovatele žádné uzly Hunt nastavené nejsou, takže se nic nerozbije. 161 testů, test na serveru (14.2 a–e) prošel. **Na produkci nasazeno 2026-11-02.** Viz kapitola 14. |
-| 6–9 | ⬜ Neprovedeno | |
+| 6 – validace configu (HUNT-008, 030, 031, 032) | ✅ **Hotovo, otestováno a nasazeno (1.3.7)** | Nový `ConfigValidator`: neplatné hodnoty a chybějící sekce jsou chyba (start → pauza, reload → starý config), drobnosti jsou varování s bezpečnou hodnotou, v logu i žlutě v chatu při `/hunt reload`. Neznámé druhy a formy v `customPrices` a `blacklist` → varování. Config bez `version` si nechá ekonomiku i měnu. `{price}` vždy s tečkou. 226 testů, mutační kontrola 10 z 10, build zelený, `-Xlint:all` bez nových varování (2026-11-02). Test na serveru prošel, **na produkci nasazeno 2026-11-02**. Se stejným releasem: kompilace proti Cobblemonu 1.8.4, Fabric Loaderu 0.20.1 a Fabric API 0.116.17 a opravy buildu (15.6). Viz kapitola 15. |
+| 7–9 | ⬜ Neprovedeno | |
 
 ---
 
@@ -172,7 +173,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 
 ### Střední
 
-#### HUNT-008 · Chybí validace configu · E · [ověřeno]
+#### ✅ HUNT-008 · [opraveno v 1.3.7, krok 6] · Chybí validace configu · E · [ověřeno]
 - **Kde:** `config/Config.java:66-90` (kontroluje se jen `huntAmount > 28`).
 - **Scénáře:**
   - `huntDuration: 0` nebo záporné: každý hunt expiruje hned, takže `check()` každou sekundu nahradí všechny hunty. Do chatu jde spam STARTED/ENDED, `hunts.json` je trvale dirty a hunt prakticky nejde splnit.
@@ -224,7 +225,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 - **Stav po kroku 3:** JUnit 5 v `common` pokrývá substituci, výběr rarity, parsování configu a langu a `FileStore` (kapitola 11). Matching, generování huntů a výplatní tok zatím testy nemají. Výplatní tok přijde s `CompletionService` v kroku 4.
 - **Stav po kroku 4:** výplatní tok (`CompletionService`) a žurnál (`PayoutJournal`) mají 23 testů (kapitola 12). Matching a generování huntů testy pořád nemají.
 
-#### HUNT-032 · Config bez `version` přepne ekonomiku na Impactor a měnu na výchozí · C/E · [ověřeno testem, nalezeno v kroku 3]
+#### ✅ HUNT-032 · [opraveno v 1.3.7, krok 6] · Config bez `version` přepne ekonomiku na Impactor a měnu na výchozí · C/E · [ověřeno testem, nalezeno v kroku 3]
 - **Kde:** `config/Config.java:106-119`, `old/ConfigOld.java:30`.
 - **Popis:** Když v jinak aktuálním `config.json` chybí `version` (třeba omylem smazaný řádek), projde soubor migrací ze starého formátu. Ta nastaví `economy = IMPACTOR` a `currencyName` vezme z `ConfigOld.impactorCurrencyName`. Gson ale pole naplní z no-arg konstruktoru `ConfigOld()` (`"impactor:huntcoins"`), takže kontrola `!= null` nikdy neplatí a měna ze souboru se ztratí. Config se označí jako `upgraded` a **přepíše se** (originál zůstane v `.bak.1`). Výplaty pak jdou v jiné měně nebo přes jinou ekonomiku, případně skončí `ERROR`, pokud měna `huntcoins` neexistuje. V `latest.log` ani v chatu se to nijak neohlásí. Před krokem 2 se v tomto případě přepsal celý config, takže jde o zbytek HUNT-004.
 - **Doklad:** `ConfigParseTest.missingVersionResetsEconomyAndCurrency` (dokumentuje současné chování, po opravě se test otočí).
@@ -251,9 +252,9 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 | HUNT-027 | A/F | `command/basecommand/HuntCommand.java:127,161-163` | GUI je statické (čas se neaktualizuje). Hráči se zobrazuje `e.getMessage()` (interní detaily). GooeyLibs `GooeyContainer` přepisuje `clicked()` i `quickMoveStack()` a volá `patchDesyncs` [ověřeno v bytecode], takže vytažení itemů je nepravděpodobné a GUI nemá akce. **Doporučuji ruční test** (shift-click, čísla 1–9, drag, double-click, Q, zavření při lagu). | Generická hláška hráči. | S |
 | HUNT-028 | E | `stats/HuntStats.java:99-103` | `/hunt stats <jméno>` vrací první shodu bez ohledu na velikost písmen. Offline mode umožní `Steve` i `steve` jako dva účty se dvěma UUID. [ověřeno] | Preferovat přesnou shodu, umožnit zadat UUID. | S |
 | HUNT-029 | B | `Hunt.java:86-91` | Vanilla `/reload` (datapacky) neobnoví `SpawnRates`. Hunty drží staré `Species` objekty (matching jede přes jména, takže funkčně OK). [ověřeno] | Hook na `END_DATA_PACK_RELOAD`. | S |
-| HUNT-030 | A | `util/Placeholders.java:43` (dříve `Utils.formatPlaceholders`) | `{price}` formátuje `DecimalFormat("0.##")` podle locale JVM. Na serveru s `cs_CZ` (nebo jiným locale s desetinnou čárkou) se cena `1.5` vypíše jako `1,5` a reward příkaz typu `eco give {uuid} {price}` ji nemusí přijmout. Celé ceny se to netýká (bez oddělovače tisíců). [ověřeno testem `decimalSeparatorFollowsServerLocale`, nalezeno v kroku 3] | `DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.ROOT))`, aspoň pro příkazy. Krok 6 nebo 9. | S |
+| ✅ HUNT-030 (opraveno v 1.3.7) | A | `util/Placeholders.java:43` (dříve `Utils.formatPlaceholders`) | `{price}` formátuje `DecimalFormat("0.##")` podle locale JVM. Na serveru s `cs_CZ` (nebo jiným locale s desetinnou čárkou) se cena `1.5` vypíše jako `1,5` a reward příkaz typu `eco give {uuid} {price}` ji nemusí přijmout. Celé ceny se to netýká (bez oddělovače tisíců). [ověřeno testem `decimalSeparatorFollowsServerLocale`, nalezeno v kroku 3] | `DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.ROOT))`, aspoň pro příkazy. Krok 6 nebo 9. | S |
 | ✅ HUNT-033 (opraveno v 1.3.6) | E/F | `util/Permissions.java`, README | `CobblemonPermission` přidává k uzlu prefix `cobblemon.` (`getLiteral()` = `"cobblemon." + node`, ověřeno v bytecode 1.8.0 i 1.8.4 a testem). LuckPerms tedy vidí `cobblemon.hunt.reload`, ne `hunt.reload`, jak tvrdilo README. Uzly nastavené podle README (`hunt.*`) nic neudělají: povolení se neuplatní (platí jen OP level) a zákaz taky ne. [ověřeno testem `permissionNodesHaveTheCobblemonPrefix`, nalezeno v kroku 5] | **Rozhodnutí provozovatele (2026-11-02):** přejít na `hunt.*` (v LuckPerms nejsou žádné uzly Hunt nastavené). Opraveno v 1.3.6 přes vlastní `HuntPermission` bez prefixu, viz kapitola 14. | S |
-| HUNT-031 | E | `config/Config.java:82-87` | `requireSection` chytí jen explicitní `null`. Chybějící klíč sekce (např. smazané celé `"rewards"`) Gson doplní z no-arg konstruktoru, takže platí **výchozí odměny** (100–1000 a diamanty) bez varování. [ověřeno testem `missingSectionGetsDefaults`, nalezeno v kroku 3] | Ve validaci (krok 6) vyžadovat přítomnost klíčů `economy`, `rarity`, `rewards`, `customPrices`, nebo aspoň WARN. | S |
+| ✅ HUNT-031 (opraveno v 1.3.7) | E | `config/Config.java:82-87` | `requireSection` chytí jen explicitní `null`. Chybějící klíč sekce (např. smazané celé `"rewards"`) Gson doplní z no-arg konstruktoru, takže platí **výchozí odměny** (100–1000 a diamanty) bez varování. [ověřeno testem `missingSectionGetsDefaults`, nalezeno v kroku 3] | Ve validaci (krok 6) vyžadovat přítomnost klíčů `economy`, `rarity`, `rewards`, `customPrices`, nebo aspoň WARN. | S |
 
 ### Latentní (individualHunts=false, revize 1)
 Tyto nálezy se projeví až po zapnutí `individualHunts`. Kód je dnes nepoužívá, ale **před zapnutím režimu je nutné je opravit**. Kdyby se zapnul bez oprav, vrací se na Vysokou.
@@ -396,7 +397,7 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 | 3 | ✅ **HOTOVO (1.3.4)** · **Testy:** JUnit 5 v `common`; testy substituce (`@a`, `Ash$1`, `a\`, `x;y`, `"`), `RarityConfig.getRandomRarity`, načítání rozbitého configu | 015 (část) | S |
 | 4 | ✅ **HOTOVO a nasazeno (1.3.4)** · **`CompletionService`:** vyčlenit výplatní tok z `CaptureEvent` (claim → log PENDING → ekonomika → příkazy jen při úspěchu → log DONE → stats), po completion vynutit uložení `hunts.json`; testy (selhání ekonomiky, dvojí completion) | 007 | M |
 | 5 | ✅ **HOTOVO a nasazeno (1.3.5)** · **Oprávnění:** `requires` přes `CommandSourceStack` místo `isPlayer() ? check : true`; sjednotit `/hunt` a `/hunts` a opravit README | 009, 017 | S |
-| 6 | **Validace configu** s jasnými hláškami (`huntDuration > 0`, `huntAmount 1–28`, váhy, `economy`, ceny, existence druhů v `customPrices` a `blacklist`) | 008 | M |
+| 6 | ✅ **HOTOVO a nasazeno (1.3.7)** · **Validace configu** s jasnými hláškami (`huntDuration > 0`, `huntAmount 1–28`, váhy, `economy`, ceny, existence druhů v `customPrices` a `blacklist`) | 008 | M |
 | 7 | **Admin příkazy:** reset stats, `save`, zobrazení stats podle UUID | 013, 028 | S |
 | 8 | **Úklid:** `old/` (po ověření, že nikdo nemá config < 1.2.3), `DebugCommand`, `Settings.java`, Utils IO, `fabric.mod.json` (`cobblemon <1.9`, `fabric-api`), Gradle deprecations, `gradlew +x`; rozhodnout o `forge/` | 023, 024 | S |
 | 9 | **Kosmetika a drobnosti:** agregované broadcasty, `{species_id}`, labely mythical/UB/paradox, datapack reload hook, GUI hláška, vyloučení právě splněného cíle | 018, 020, 021, 022, 026, 027, 029 | S |
@@ -413,7 +414,7 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 2. ~~**Jen pokud ověření selže**~~ *(nebylo potřeba, ověření prošlo)* (hráč se jménem mimo `[A-Za-z0-9_]` se dostane na Cobblemon server): okamžitě odstranit `{player}` z `captureHuntBroadcast` v `lang.json` a z reward příkazů, pak `/hunt reload`. Odměny přes příkazy tím do hotfixu přestanou fungovat. Placeholder `{uuid}` (vanilla `give` UUID přijme) přidá až krok 0.
 3. **Kroky 0 a 1 jako jeden hotfix release.** ✅ Nasazeno 2026-11-02 (v 1.3.3 spolu s krokem 2). Po nasazení 1–2 dny sledovat `payouts.log`. Měna je převoditelná, takže log je jediný způsob, jak zpětně najít případné zneužití.
 4. Krok 2 (config) před další úpravou `config.json` na produkci. **Hotovo, otestováno a nasazeno v 1.3.3 (2026-11-02)** (kapitola 10).
-5. Kroky 3–4 (testy a `CompletionService`). ✅ **Hotovo, otestováno a nasazeno v 1.3.4 (2026-11-02)** (kapitoly 11 a 12). Krok 5 (oprávnění) ✅ **hotovo, otestováno a nasazeno v 1.3.5 (2026-11-02)** (kapitola 13). Dál krok 6.
+5. Kroky 3–4 (testy a `CompletionService`). ✅ **Hotovo, otestováno a nasazeno v 1.3.4 (2026-11-02)** (kapitoly 11 a 12). Krok 5 (oprávnění) ✅ **hotovo, otestováno a nasazeno v 1.3.5 (2026-11-02)** (kapitola 13). Krok 6 (validace configu) ✅ **hotovo, otestováno a nasazeno v 1.3.7 (2026-11-02)** (kapitola 15). Dál krok 7.
 6. Kroky 7–9 průběžně.
 7. Ruční test GUI (HUNT-027). Test spawn zdrojů (HUNT-010) už není potřeba: podle provozovatele spawnuje divoké Pokémony jen Cobblemon (revize 3).
 
@@ -749,3 +750,76 @@ Odhad: ~8 souborů, ~80 změněných řádků, náročnost **S**.
 ### 14.3 Rizika
 - NeoForge validator Cobblemonu může používat `getIdentifier()` místo `getLiteral()`. NeoForge modul se na produkci nepoužívá (viz HUNT-024), proto se tam neověřuje.
 
+---
+
+## 15. Plán kroku 6: validace configu (1.3.7) · ✅ HOTOVO, otestováno a nasazeno
+
+**Stav:** Změny A–H z 15.2 jsou implementované. Build je zelený (226 testů, `-Xlint:all` bez nových varování) a mutační kontrola zachytila 10 z 10 mutací (2026-11-02). **Test na serveru proběhl a prošel a 1.3.7 je nasazená na produkci (2026-11-02, potvrzeno provozovatelem).** Opravy buildu ze stejného releasu jsou v 15.6.
+
+**Cíl:** Neplatný config je chyba se srozumitelnou hláškou a chová se jako rozbitý soubor (start → pauza, reload → starý config, soubor se nemění). Drobnosti jsou varování s bezpečnou hodnotou. Řeší HUNT-008, HUNT-030, HUNT-031 a HUNT-032.
+**Rozhodnutí provozovatele (2026-11-02):** neexistující druh nebo forma v `customPrices`/`blacklist` je **varování**. Chybějící sekce `economy`/`rarity`/`rewards`/`customPrices` nebo úroveň odměn je **chyba**. `{price}` má **všude tečku** (`Locale.ROOT`, příkazy, chat i GUI).
+**Datové formáty se nemění.** Návrat na 1.3.6 = výměna jaru.
+
+### 15.1 Pravidla
+**Chyby** (config se odmítne a vypíšou se všechny problémy najednou, oddělené `; `):
+- Chybí nebo je `null`: `economy` (kromě formátu 1.2.x), `rarity`, `rewards`, `customPrices`. Kontroluje se klíč v JSON, ne výsledek Gsonu (HUNT-031).
+- Chybí nebo je `null` úroveň `rewards.common/uncommon/rare/ultraRare`, nebo v ní chybí `price`. `RewardConfig` nemá no-arg konstruktor, takže chybějící cena byla dřív potichu 0 a `commands` `null`.
+- Cena záporná, `NaN` nebo `±Infinity` (Gson je lenientní a `NaN` přijme). 0 je povolená.
+- `huntDuration < 1`, `huntAmount < 1`, záporná váha rarity, všechny váhy 0.
+- Položka `customPrices` je `null`, nemá `species` (chybí nebo je prázdný), `reward` nebo `reward.price`. Dřív Gson doplnil chybějící klíče z `CustomPrice()`, tedy Magikarp za 500 a diamant.
+- Neznámá `economy` (hláška vyjmenuje povolené hodnoty).
+- Prázdné `currencyName`, když se používá (Blanket, nebo Impactor s `useImpactorDefaultCurrency: false`).
+
+**Varování** (config se načte):
+- `huntAmount > 28` → 28 (dřív `LOGGER.error` bez hlášky adminovi). `bufferDuration < 0` → 0.
+- `commands` chybí → prázdný seznam. `null`/prázdné položky v `commands` a `blacklist` se vyřadí (`null` v blacklistu dřív vedl k NPE v `blacklistContains`).
+- Chybí `matchProperties` nebo `blacklist` → výchozí hodnoty. Explicitní `null` zůstává chybou jako v 1.3.3.
+- Duplicitní `customPrices` pro stejný druh a formu (platí první). Prázdné `packIconItem` → výchozí.
+- Chybí `version` nebo je jiná a soubor má nový formát → hodnoty zůstanou, doplní se verze a soubor se přepíše (originál v `.bak.1`) (HUNT-032).
+- Druh nebo forma, kterou Cobblemon nezná, v `customPrices` (`species`, `form`) a `blacklist` (`Druh` nebo `Druh-Forma`; druhy se spojovníkem jako `Ho-Oh` fungují).
+
+### 15.2 Změny po souborech
+| # | Soubor | Změna | Řeší |
+|---|---|---|---|
+| A | nový `config/ConfigValidator.java` | Čistá logika bez MC. `validate(Config, JsonObject, legacy)` → `Result(errors, warnings)` a provede náhrady. `checkSpecies(Config, Map<String, Set<String>>)` → varování. Katalog = jména druhů malými písmeny → názvy forem. | 008, 031 |
+| B | `config/Config.java` | `parse` volá validator, chyby → `ConfigLoadException`, varování v `getWarnings()`. `requireSection` je pryč. Migrace `ConfigOld` jen pro skutečný formát 1.2.x (`impactorCurrencyName` a žádná `economy`). Package-private settery pro náhrady. | 008, 031, 032 |
+| C | `config/RewardConfig.java` | Package-private `setCommands`. | 008 |
+| D | `Hunt.java` | `LoadReport` má `warnings`. `loadConfig` zaloguje každé varování jako WARN s prefixem `config.json: `. Katalog druhů z `PokemonSpecies.getSpecies()` (i neimplementované druhy, standardní forma + `getForms()`). Prázdný registr → kontrola se přeskočí s WARN. | 008 |
+| E | `command/subcommand/ReloadCommand.java` | Varování žlutě `§e[Hunt] …`. | 008 |
+| F | `util/Placeholders.java`, `hunts/SingleHunt.java` | `Placeholders.formatPrice` s `Locale.ROOT`, používá ho `{price}` i `getPriceAsString` (GUI). | 030 |
+| G | `README.md` | Sekce *Config checks*, `{price}` s tečkou, migrace jen pro 1.2.x. | – |
+| H | `gradle.properties` | `mod_version=1.3.7` | – |
+
+Změněno 10 souborů a 2 nové.
+
+### 15.3 Testy (JUnit 5)
+- **`config/ConfigValidatorTest` (53):** každé pravidlo z 15.1 včetně hranic (`huntDuration` 0/1, `huntAmount` 0/1/28/29, ceny −1/−0.01/0/NaN/±Infinity, váhy), chybějící `price` v úrovni i v `customPrices`, `customPrices` bez `species`/`reward`, `null` v blacklistu a `commands`, prázdná měna podle ekonomiky, duplicitní a odlišné formy, více chyb najednou. `checkSpecies` s falešným katalogem: známé druhy a formy, velikost písmen a mezery, překlep, neznámá forma, `Vulpix-Alola`, `Ho-Oh`, `Ho-Oh-Normal`, `-mew`, `mew-`.
+- **`config/ConfigParseTest` (37):** doklady otočené: `missingVersionKeepsEconomyAndCurrency` (HUNT-032), `missingSectionIsRejected` pro 4 sekce (HUNT-031). Nově `oldVersionWithEconomyIsNotMigrated`, `legacyConfigNeedsNoEconomyKey`, chybějící `matchProperties`/`blacklist` → varování, výchozí config bez varování.
+- **`util/PlaceholdersTest` (37):** `decimalSeparatorIsAlwaysDot` pro `cs-CZ`, `de-DE`, `fr-FR`, `ar-EG` a `hi-IN` s devanágarí číslicemi (HUNT-030).
+- **Mutační kontrola (10 z 10):** `huntDuration < 0` (2 failed), součet vah `< 0` (1), bez `price < 0` (4), bez `isNaN` (1), `rewards` bez kontroly klíče (2), bez kontroly klíče `price` (2), bez kontroly klíče `species` (1), blacklist bez dělení na `Druh-Forma` (1), původní detekce migrace (1), locale JVM místo `Locale.ROOT` (5).
+
+### 15.4 Ověření
+1. ✅ `bash ./gradlew build --rerun-tasks`: zelený, 226 testů. `-Xlint:all` (init skript): jen známé `[this-escape]` v `HuntForge`.
+2. ✅ **Produkční config před nasazením:** projet kopii produkčního `config.json` offline přes `Config.parse` (jednorázový `CheckConfig` proti `common/build/classes`). Výstup `OK` / `REJECTED` + seznam chyb a varování. Chyby opravit v souboru ještě na 1.3.6. Druhy se offline nekontrolují, ty ukáže až start na testovacím serveru.
+3. ✅ **Testovací server** (prošlo 2026-11-02) (před každým scénářem zálohovat `config/hunt/`):
+   - a) Výchozí config → žádné WARN od Hunt, hunty běží.
+   - b) Start s `huntDuration: 0` → pauza, ERROR banner s hláškou, `config.json` beze změny (`sha256sum`). Oprava + `/hunt reload` → „Hunt started“.
+   - c) Reload se smazanou sekcí `rewards` → červená hláška, platí starý config (vyplácí se stará cena).
+   - d) Reload s `huntAmount: 0` a cenou `-5` → obě chyby v jedné hlášce.
+   - e) Překlep `magikrap` v `customPrices` a `blacklist` → žluté hlášky v chatu, WARN v logu, Hunt běží.
+   - f) `bufferDuration: -1`, `huntAmount: 40` → varování, platí 0 a 28 (GUI má 28 slotů).
+   - g) Config bez `version` s jinou ekonomikou nebo měnou → hodnoty zachované, WARN, soubor doplněn o verzi, `.bak.1` = originál.
+   - h) Locale `cs_CZ` (`-Duser.language=cs -Duser.country=CZ`), cena `1.5`, příkaz `say {price}` → `1.5` v příkazu, v chatu i v GUI.
+   - i) Regrese: 9.2/3 a) (chycení, výplata, `PAID`) a 12.4/3 a) (PENDING/DONE).
+
+### 15.5 Rizika
+- **Config, který 1.3.6 načetla, může 1.3.7 odmítnout** (chybějící sekce, záporná cena, `customPrices` bez `species`). Hunt by po nasazení nastartoval pozastavený, proto 15.4/2.
+- Když se config přepisuje kvůli doplnění verze nebo ikonových voleb, zapíšou se do souboru už nahrazené hodnoty (např. `huntAmount` 28). Originál zůstane v `.bak.1`.
+- Kontrola druhů závisí na registru Cobblemonu při `SERVER_STARTED`. Falešné varování nic nezablokuje.
+- Hunty uložené v `hunts.json` si nesou cenu z doby vzniku a validace je zpětně nemění.
+- `/hunt stats` (`{earned}`) dál formátuje podle locale JVM s oddělovačem tisíců. Jde jen o zobrazení, do příkazů se nedosazuje.
+
+### 15.6 Build (stejný release 1.3.7)
+- **Verze závislostí** (`gradle.properties`, změna provozovatele): Fabric Loader 0.16.0 → 0.20.1, Fabric API 0.107.0 → 0.116.17+1.21.1, Cobblemon (compile) 1.8.0 → 1.8.4+1.21.1. `fabric.mod.json` dál uvádí `cobblemon >=1.8.0`. Zvednutí spodní hranice patří do kroku 8.
+- **Neúplný sources jar:** `remapSourcesJar` ve `fabric` i `forge` hlásil `Could not remap … fully! NullPointerException` (i se starými verzemi, chyba byla starší). Sources jar platformy obsahuje i zdrojáky z `common`, ale `common` se připojuje s `transitive = false`, takže remapper (Mercury) neviděl Cobblemon. U `SpawnRates.java` spadl a zbytek souborů (`stats/*`, `util/*`, `old/*`) ve výsledném `*-sources.jar` chyběl. Samotného jaru s módem se to netýkalo. **Oprava:** `modCompileOnly "com.cobblemon:fabric:…"` / `"com.cobblemon:neoforge:…"` ve `fabric/build.gradle` a `forge/build.gradle`. Remapovaný sources jar teď obsahuje stejné soubory jako vstupní, velikost jarů s módem se nezměnila a Cobblemon se do nich nebalí.
+- **Deprecations Gradlu ve vlastních skriptech:** `archivesBaseName` → `base { archivesName = … }`, `url "…"` → `url = "…"`, `transitive false` → `transitive = false`, `exceptionFormat "full"` → `exceptionFormat = "full"`. Zbylá varování (`Convention`, `JavaPluginConvention`, `ConfigureUtil`, `Task.project` při spuštění, `FileTreeElement.getMode()`) pochází z pluginu `com.github.johnrengelman.shadow` 7.1.2. Přechod na `com.gradleup.shadow` 8.x patří do kroku 8 (HUNT-023/024).

@@ -117,14 +117,15 @@ class PlaceholdersTest {
 	}
 
 	/**
-	 * Documents current behaviour (see AUDIT.md, HUNT-030): {price} follows the JVM locale, so a server
-	 * running with a Czech locale writes a decimal comma, which a command like "eco give {uuid} {price}"
-	 * may not accept. Whole prices are not affected.
+	 * HUNT-030: {price} always uses a dot, whatever the server's locale, so a command like
+	 * "eco give {uuid} {price}" can read it.
 	 */
-	@Test
-	void decimalSeparatorFollowsServerLocale() {
-		Locale.setDefault(Locale.forLanguageTag("cs-CZ"));
-		assertEquals("1,5", Placeholders.fill("{price}", null, null, null, 1.5));
-		assertEquals("500", Placeholders.fill("{price}", null, null, null, 500));
+	@ParameterizedTest
+	@ValueSource(strings = {"cs-CZ", "de-DE", "fr-FR", "ar-EG", "hi-IN-u-nu-deva"})
+	void decimalSeparatorIsAlwaysDot(String locale) {
+		Locale.setDefault(Locale.forLanguageTag(locale));
+		assertEquals("1.5", Placeholders.fill("{price}", null, null, null, 1.5));
+		assertEquals("1234567.25", Placeholders.fill("{price}", null, null, null, 1234567.25));
+		assertEquals("500", Placeholders.formatPrice(500));
 	}
 }

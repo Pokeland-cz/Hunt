@@ -46,7 +46,7 @@ Messages in `lang.json` and reward commands in `config.json` can use these place
 | `{player}` | The player's name. |
 | `{uuid}` | The player's UUID. |
 | `{pokemon}` | The Pokemon's display name. |
-| `{price}` | The hunt's price. |
+| `{price}` | The hunt's price, with at most two decimals and always a dot (`1.5`), whatever the server's language. |
 
 Reward commands run as the server. **Use `{uuid}` instead of `{player}` wherever the command accepts an entity** (vanilla `give`, `effect`, `tp`, …), for example `give {uuid} minecraft:diamond 1`. For commands from other mods (e.g. economy commands), check first that they accept a UUID.
 
@@ -70,7 +70,11 @@ A command that contains `{player}` is skipped, with a warning in the log, if the
   - `config.json` broken, unreadable or missing **on `/hunt reload`**: the previous config stays in use, and the admin sees the reason in chat and in the log.
   - `lang.json` broken or unreadable: the default texts are used at startup and the previous texts on reload. Rewards are not affected.
   - A missing `config.json` or `lang.json` is only generated with the defaults at startup.
-  - Older `config.json`/`lang.json` files are upgraded in place, keeping your values and texts. The original is kept as `*.bak.1`.
+  - Older `config.json`/`lang.json` files are upgraded in place, keeping your values and texts. The original is kept as `*.bak.1`. A `config.json` that only lacks `"version"` keeps its economy and currency; only a real 1.2.x file (with `impactorCurrencyName` and no `economy`) is migrated to Impactor.
+- **Config checks:** `config.json` is also checked for values that make no sense. All problems are listed at once.
+  - **Errors** are treated like a broken file (paused at startup, previous config on reload): a missing or `null` `economy`, `rarity`, `rewards` or `customPrices`; a missing reward tier (`rewards.common`, `uncommon`, `rare`, `ultraRare`) or its `price`; a negative, `NaN` or infinite price (0 is allowed); `huntDuration` or `huntAmount` below 1; a negative rarity weight or all weights 0; a `customPrices` entry without `species` or `reward` (or without `reward.price`); an unknown `economy`; an empty `currencyName` when it is used (Blanket, or Impactor with `useImpactorDefaultCurrency: false`).
+  - **Warnings** use a safe value and Hunt keeps running: `huntAmount` above 28 (28 is used), a negative `bufferDuration` (0), missing `commands` (none run), empty entries in `commands` or `blacklist` (ignored), a missing `matchProperties` or `blacklist` (defaults), a `customPrices` species and form listed twice (the first is used), an empty `packIconItem` (the default), a missing `version`, and species or forms in `customPrices` or `blacklist` that Cobblemon doesn't know (the entry does nothing, usually a typo).
+  - Warnings are logged as WARN at startup and on reload, and `/hunt reload` also shows them in yellow in chat.
 - **Data safety:** `hunts.json`, `stats.json`, `config.json` and `lang.json` are written atomically (temp file + move). Before a file is overwritten for the first time after a server start, the previous version is kept as `<file>.bak.1`, and older copies move up to `.bak.2` and `.bak.3`. So `.bak.1` is the file as it was at the last start. If `hunts.json` or `stats.json` exists but can't be read (e.g. wrong permissions), Hunt logs an ERROR and doesn't save that file until the next restart.
 - **Icons:** `usePackIcons` (on by default) shows species icons from a resource pack that overrides `packIconItem` (default `minecraft:gray_dye`) with `custom_model_data` set to the National Pokedex number, and `0` as a fallback icon. Forms use the base species icon.
 

@@ -1,6 +1,8 @@
 package org.pokesplash.hunt.util;
 
 import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.Locale;
 
 /**
  * Fills in message and command placeholders. Has no Minecraft dependencies, so it can be tested without a server.
@@ -40,11 +42,19 @@ public final class Placeholders {
 		}
 
 		if (price != -1) {
-			DecimalFormat df = new DecimalFormat("0.##");
-			result = result.replace(PRICE, df.format(price));
+			result = result.replace(PRICE, formatPrice(price));
 		}
 
 		return result;
+	}
+
+	/**
+	 * Formats a price with at most two decimals and always a dot as the decimal separator, whatever the
+	 * server's locale, so reward commands such as "eco give {uuid} {price}" can read it (HUNT-030).
+	 */
+	public static String formatPrice(double price) {
+		// DecimalFormat isn't thread-safe, so a new one is made each time.
+		return new DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.ROOT)).format(price);
 	}
 
 	/**

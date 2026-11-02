@@ -110,6 +110,7 @@ class ConfigParseTest {
 	void huntAmountIsCappedAt28() throws ConfigLoadException {
 		Config config = Config.parse(defaultJsonWith(root -> root.addProperty("huntAmount", 40)));
 		assertEquals(28, config.getHuntAmount());
+		assertTrue(config.getWarnings().stream().anyMatch(w -> w.contains("huntAmount")), config.getWarnings().toString());
 	}
 
 	@Test
@@ -154,34 +155,65 @@ class ConfigParseTest {
 				JsonParser.parseString(config.toJson()).getAsJsonObject().get("version").getAsString());
 	}
 
-	/**
-	 * Documents current behaviour (see AUDIT.md, HUNT-032): a current-format config that only lacks
-	 * "version" goes through the old-format migration, which switches the economy to Impactor and
-	 * replaces currencyName with ConfigOld's default, because ConfigOld() always sets impactorCurrencyName.
-	 */
+	/** HUNT-032: a current-format config that only lacks "version" keeps its economy and currency. */
 	@Test
-	void missingVersionResetsEconomyAndCurrency() throws ConfigLoadException {
+	void missingVersionKeepsEconomyAndCurrency() throws ConfigLoadException {
 		Config config = Config.parse(defaultJsonWith(root -> {
 			root.remove("version");
 			root.addProperty("economy", "PEBBLES");
 			root.addProperty("currencyName", "impactor:gold");
 		}));
-		assertEquals(Economy.IMPACTOR, config.getEconomy());
-		assertEquals("impactor:huntcoins", config.getCurrencyName());
+		assertEquals(Economy.PEBBLES, config.getEconomy());
+		assertEquals("impactor:gold", config.getCurrencyName());
+		assertTrue(config.isUpgraded());
+		assertEquals(Hunt.CONFIG_VERSION, config.getVersion());
+		assertTrue(config.getWarnings().stream().anyMatch(w -> w.contains("version")), config.getWarnings().toString());
 	}
 
-	/**
-	 * Documents current behaviour (see AUDIT.md, HUNT-031): a missing section key is not an error,
-	 * Gson keeps the default from the constructor, so the default rewards apply.
-	 */
 	@Test
-	void missingSectionGetsDefaults() throws ConfigLoadException {
+	void oldVersionWithEconomyIsNotMigrated() throws ConfigLoadException {
 		Config config = Config.parse(defaultJsonWith(root -> {
-			root.getAsJsonObject("rewards").getAsJsonObject("common").addProperty("price", 1);
-			root.remove("rewards");
+			root.addProperty("version", "1.2.2");
+			root.addProperty("economy", "BLANKET");
+			root.addProperty("currencyName", "blanket:coin");
 		}));
-		assertEquals(100, config.getRewards().getCommon().getPrice());
-		assertEquals("give {player} minecraft:diamond 1", config.getRewards().getCommon().getCommands().get(0));
+		assertEquals(Economy.BLANKET, config.getEconomy());
+		assertEquals("blanket:coin", config.getCurrencyName());
+		assertTrue(config.isUpgraded());
+	}
+
+	@Test
+	void legacyConfigNeedsNoEconomyKey() throws ConfigLoadException {
+		Config config = Config.parse(defaultJsonWith(root -> {
+			root.remove("version");
+			root.remove("economy");
+			root.remove("currencyName");
+			root.addProperty("impactorCurrencyName", "impactor:gold");
+		}));
+		assertEquals(Economy.IMPACTOR, config.getEconomy());
+		assertEquals("impactor:gold", config.getCurrencyName());
+		assertTrue(config.getWarnings().isEmpty(), config.getWarnings().toString());
+	}
+
+	/** HUNT-031: a missing section key no longer silently gives the default rewards. */
+	@ParameterizedTest
+	@ValueSource(strings = {"economy", "rarity", "rewards", "customPrices"})
+	void missingSectionIsRejected(String key) {
+		String json = defaultJsonWith(root -> root.remove(key));
+		ConfigLoadException e = assertThrows(ConfigLoadException.class, () -> Config.parse(json));
+		assertTrue(e.getMessage().contains(key), e.getMessage());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"matchProperties", "blacklist"})
+	void missingOptionalSectionGetsDefaultsWithWarning(String key) throws ConfigLoadException {
+		Config config = Config.parse(defaultJsonWith(root -> root.remove(key)));
+		assertTrue(config.getWarnings().stream().anyMatch(w -> w.contains(key)), config.getWarnings().toString());
+	}
+
+	@Test
+	void defaultConfigHasNoWarnings() throws ConfigLoadException {
+		assertTrue(Config.parse(defaultJson()).getWarnings().isEmpty());
 	}
 
 	@Test

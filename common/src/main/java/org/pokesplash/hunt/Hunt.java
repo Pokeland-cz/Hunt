@@ -1,5 +1,8 @@
 package org.pokesplash.hunt;
 
+import com.cobblemon.mod.common.api.pokemon.PokemonSpecies;
+import com.cobblemon.mod.common.pokemon.FormData;
+import com.cobblemon.mod.common.pokemon.Species;
 import net.minecraft.server.MinecraftServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -7,6 +10,7 @@ import org.pokesplash.hunt.broadcast.Broadcaster;
 import org.pokesplash.hunt.command.basecommand.HuntCommand;
 import org.pokesplash.hunt.config.Config;
 import org.pokesplash.hunt.config.ConfigLoadException;
+import org.pokesplash.hunt.config.ConfigValidator;
 import org.pokesplash.hunt.config.Lang;
 import org.pokesplash.hunt.event.CaptureEvent;
 import org.pokesplash.hunt.event.PayoutJournal;
@@ -21,7 +25,11 @@ import org.pokesplash.hunt.util.FileStore;
 import org.pokesplash.hunt.util.Permissions;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -130,7 +138,7 @@ public class Hunt
 		} else if (report.configOk()) {
 			start();
 			LOGGER.info("config.json loaded, Hunt started.");
-			return new LoadReport(true, true, report.errors());
+			return new LoadReport(true, true, report.errors(), report.warnings());
 		}
 		return report;
 	}
@@ -159,24 +167,26 @@ public class Hunt
 	 * @param configOk config.json is loaded (now or from before), so Hunt can run.
 	 * @param started Hunt was paused and has just started.
 	 * @param errors messages for the admin about files that weren't loaded.
+	 * @param warnings messages for the admin about config values that were replaced or do nothing.
 	 */
-	public record LoadReport(boolean configOk, boolean started, List<String> errors) {
+	public record LoadReport(boolean configOk, boolean started, List<String> errors, List<String> warnings) {
 	}
 
 	private static LoadReport loadConfigs(boolean startup) {
 		List<String> errors = new ArrayList<>();
-		boolean configOk = loadConfig(startup, errors);
+		List<String> warnings = new ArrayList<>();
+		boolean configOk = loadConfig(startup, errors, warnings);
 		loadLang(startup, errors);
 		broadcaster.init();
 		spawnRates.init();
-		return new LoadReport(configOk, false, errors);
+		return new LoadReport(configOk, false, errors, warnings);
 	}
 
 	/**
 	 * Loads config.json. Never overwrites a file that couldn't be read or parsed.
 	 * @return true if a config is in use: the file's, the default one (first start), or the previous one (reload).
 	 */
-	private static boolean loadConfig(boolean startup, List<String> errors) {
+	private static boolean loadConfig(boolean startup, List<String> errors, List<String> warnings) {
 		// On a reload, a config that was loaded before stays in use if the file can't be loaded.
 		boolean keepPrevious = !startup && configLoaded;
 		switch (FileStore.read(CONFIG_FILE)) {
@@ -198,6 +208,13 @@ public class Hunt
 			case FileStore.Ok ok -> {
 				try {
 					Config parsed = Config.parse(ok.content());
+					List<String> problems = new ArrayList<>(parsed.getWarnings());
+					problems.addAll(checkSpecies(parsed));
+					for (String problem : problems) {
+						String message = CONFIG_FILE + ": " + problem;
+						LOGGER.warn(message);
+						warnings.add(message);
+					}
 					config = parsed;
 					configLoaded = true;
 					if (parsed.isUpgraded() && !FileStore.writeSync(CONFIG_FILE, parsed.toJson())) {
@@ -210,6 +227,26 @@ public class Hunt
 				}
 			}
 		}
+	}
+
+	/**
+	 * Finds customPrices and blacklist entries for species or forms that Cobblemon doesn't know.
+	 */
+	private static List<String> checkSpecies(Config cfg) {
+		Map<String, Set<String>> catalog = new HashMap<>();
+		for (Species species : PokemonSpecies.getSpecies()) {
+			Set<String> forms = new HashSet<>();
+			forms.add(species.getStandardForm().getName().toLowerCase(Locale.ROOT));
+			for (FormData form : species.getForms()) {
+				forms.add(form.getName().toLowerCase(Locale.ROOT));
+			}
+			catalog.put(species.getName().toLowerCase(Locale.ROOT), forms);
+		}
+		if (catalog.isEmpty()) {
+			LOGGER.warn("Cobblemon has no species loaded yet, so the species in customPrices and blacklist weren't checked.");
+			return List.of();
+		}
+		return ConfigValidator.checkSpecies(cfg, catalog);
 	}
 
 	/**
