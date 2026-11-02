@@ -1,22 +1,22 @@
-
 # Cobblemon Hunt
 
 ![GitHub](https://img.shields.io/github/license/PokeSplashDEV/Hunt)
 
-A hunt mod for [Cobblemon](https://cobblemon.com/). Allows players to gain money from hunting specific Pokemon.
+A hunt mod for [Cobblemon](https://cobblemon.com/). Allows players to gain money from hunting specific Pokémon.
+
 ## Features
 
-- Get paid for capturing Pokemon.
+- Get paid for capturing Pokémon.
 - Configurations for:
     - Hunt duration
-    - Amount of Hunt Pokemon
+    - Amount of Hunt Pokémon
     - Prices per rarity
     - Properties (Ability, Gender, Nature, Shiny)
-    - Custom prices for specific Pokemon
+    - Custom prices for specific Pokémon
 - Regional and alternate forms (e.g. Alolan Vulpix) are hunted when they spawn in the world.
 - Hunts are saved to `config/hunt/hunts.json` and survive restarts.
 - Hunt stats and a leaderboard, saved to `config/hunt/stats.json`.
-- Optional species icons from a resource pack instead of Pokemon models.
+- Optional species icons from a resource pack instead of Pokémon models.
 
 ## Commands
 
@@ -60,7 +60,7 @@ Messages in `lang.json` and reward commands in `config.json` can use these place
 | --- | --- |
 | `{player}` | The player's name. |
 | `{uuid}` | The player's UUID. |
-| `{pokemon}` | The Pokemon's display name. It can contain spaces and, for a caught Pokemon, a mark title ("Vulpix the Peppy"), so use it in messages, not as a command argument. |
+| `{pokemon}` | The Pokémon's display name. It can contain spaces and, for a caught Pokémon, a mark title ("Vulpix the Peppy"), so use it in messages, not as a command argument. |
 | `{species_id}` | The species id as Cobblemon writes it, e.g. `vulpix` or `mrmime` (species from other mods: `othermod:foo`). |
 | `{form}` | The form id, e.g. `alola`, or `normal` for the standard form. |
 | `{price}` | The hunt's price, with at most two decimals and always a dot (`1.5`), whatever the server's language. |
@@ -75,14 +75,14 @@ A command that contains `{player}` is skipped, with a warning in the log, if the
 
 - **Broadcasts:** with `timerCooldowns` on, "begun" and "ended" messages are collected for `bufferDuration` seconds and sent as one message with the names joined (`The hunt for Pikachu, Eevee, Vulpix has begun!`), so none are lost when all hunts end at once. If the text uses `{price}`, `{species_id}`, `{form}`, `{player}` or `{uuid}`, every hunt gets its own line instead. "Captured" messages are always sent right away. With `timerCooldowns` off every message is sent right away.
 - **What must match:** the species and the form always have to match (an Alolan Vulpix doesn't complete a Vulpix hunt, and the other way round; the menu shows the form after the name). Ability, gender, nature and shiny are only checked when they are switched on in `matchProperties`.
-- **Shiny:** hunt Pokemon are never shiny. `matchProperties.shiny: false` (default): shiny or not, both complete a hunt. `true`: **only a shiny** Pokemon completes a hunt (rare: about 1 in 8192 with Cobblemon's default shiny rate), and the menu shows the hunts as shiny.
-- **Excluded labels:** species and forms with a label in `excludedLabels` are never hunted. The default is `["legendary", "mythical", "ultra_beast", "paradox"]`; remove a label to allow it, e.g. if a datapack spawns Paradox Pokemon you want hunted. Labels are not case-sensitive. Cobblemon's own world spawns don't include any of these.
+- **Shiny:** hunt Pokémon are never shiny. `matchProperties.shiny: false` (default): shiny or not, both complete a hunt. `true`: **only a shiny** Pokémon completes a hunt (rare: about 1 in 8192 with Cobblemon's default shiny rate), and the menu shows the hunts as shiny.
+- **Excluded labels:** species and forms with a label in `excludedLabels` are never hunted. The default is `["legendary", "mythical", "ultra_beast", "paradox"]`; remove a label to allow it, e.g. if a datapack spawns Paradox Pokémon you want hunted. Labels are not case-sensitive. Cobblemon's own world spawns don't include any of these.
 - **Datapack reload:** a vanilla `/reload` reads the hunt targets from Cobblemon's spawn pools again (log: `hunt targets updated`). Running hunts stay until they end; missing hunts are topped up.
 - **Blacklist:** an entry blocks a species and all its forms (`"Vulpix"`), or a single form with `Species-Form` (`"Vulpix-Alola"`).
 - **Custom prices:** an entry with a `form` wins over an entry for the whole species.
 - **Payout log:** `config/hunt/payouts.log` is append-only (never overwritten), one JSON object per line. Every completed hunt writes two lines with the same `completionId`:
   - `"phase":"PENDING"`, written and flushed to disk **before** anything is paid: `time` (UTC), `completionId`, `uuid`, `name`, `huntId`, `target` (`species/form`), `bucket`, `price` and `commands` (the command templates).
-  - `"phase":"DONE"`, after the payout, with the same fields plus `economy`, `outcome`, `paid`, `error`, `caughtPokemon` (the caught Pokemon's UUID) and `commands` (each with `command`, `status` and `result`). The server log gets a `Hunt payout: …` line.
+  - `"phase":"DONE"`, after the payout, with the same fields plus `economy`, `outcome`, `paid`, `error`, `caughtPokemon` (the caught Pokémon's UUID) and `commands` (each with `command`, `status` and `result`). The server log gets a `Hunt payout: …` line.
   - `outcome` is `PAID`, `DECLINED` (the economy refused), `ERROR` (the economy failed, see `error`) or `NO_PRICE`. A command's `status` is `RAN`, `SKIPPED_UNSAFE_NAME`, `SKIPPED_PAYMENT_FAILED` or `FAILED`. Lines from before 1.3.4 have no `phase` and are one line per completion.
   - To list payouts only (one line per completion, old lines included): `jq -c 'select(.outcome != null)' config/hunt/payouts.log`. Only `DONE` lines and lines from before 1.3.4 have `outcome`; `PENDING` lines and manually added `"resolved"` lines don't. A player's payouts: `jq -c 'select(.outcome != null and .name == "Steve")' config/hunt/payouts.log`.
 - **Failed payments:** if the economy refuses or fails, the reward commands are **not** run (they are logged as `SKIPPED_PAYMENT_FAILED`) and the player gets `payFailedMessage` from `lang.json`. Hunts with no price still run their commands.
@@ -100,8 +100,7 @@ A command that contains `{player}` is skipped, with a warning in the log, if the
   - **Warnings** use a safe value and Hunt keeps running: `huntAmount` above 28 (28 is used), a negative `bufferDuration` (0), missing `commands` (none run), empty entries in `commands` or `blacklist` (ignored), a missing `matchProperties` or `blacklist` (defaults), a `null` `excludedLabels` (defaults) or empty entries in it (ignored), a `customPrices` species and form listed twice (the first is used), an empty `packIconItem` (the default), a missing `version`, and species or forms in `customPrices` or `blacklist` that Cobblemon doesn't know (the entry does nothing, usually a typo).
   - Warnings are logged as WARN at startup and on reload, and `/hunt reload` also shows them in yellow in chat.
 - **Data safety:** `hunts.json`, `stats.json`, `config.json` and `lang.json` are written atomically (temp file + move). Before a file is overwritten for the first time after a server start, the previous version is kept as `<file>.bak.1`, and older copies move up to `.bak.2` and `.bak.3`. So `.bak.1` is the file as it was at the last start. If `hunts.json` or `stats.json` exists but can't be read (e.g. wrong permissions), Hunt logs an ERROR and doesn't save that file until the next restart.
-- **Icons:** `usePackIcons` (on by default) shows species icons from a resource pack that overrides `packIconItem` (default `minecraft:gray_dye`) with `custom_model_data` set to the National Pokedex number, and `0` as a fallback icon. Forms use the base species icon.
-
+- **Icons:** `usePackIcons` (on by default) shows species icons from a resource pack that overrides `packIconItem` (default `minecraft:gray_dye`) with `custom_model_data` set to the National Pokédex number, and `0` as a fallback icon. Forms use the base species icon.
 
 ## Installation
 
@@ -112,20 +111,18 @@ Hunt is a server-side [Fabric](https://fabricmc.net/) mod for Minecraft 1.21.1 (
 - An economy: [Impactor](https://modrinth.com/mod/impactor) (default), Pebbles or Blanket, see `economy` in `config.json`
 - [GooeyLibs](https://github.com/NickImpact/GooeyLibs) is bundled in the jar
 
-
 ## Screenshots
 
 ![Hunt Screen](https://i.imgur.com/Dncduqx.png)
-![Hunt Pokemon](https://i.imgur.com/yEf6sBO.png)
+![Hunt Pokémon](https://i.imgur.com/yEf6sBO.png)
+
 ## Documentation
 
 [See the wiki.](https://github.com/PokeSplashDEV/Hunt/wiki)
 
-
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)
-
 
 ## Authors
 
