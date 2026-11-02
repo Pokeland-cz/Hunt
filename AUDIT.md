@@ -11,9 +11,10 @@ Značení: **[ověřeno]** = viděno v kódu Hunt nebo ve zdrojácích/bytecode 
 **Stav oprav (2026-11-02):**
 | Krok (7.4) | Stav | Poznámka |
 |---|---|---|
-| 0 – hotfix bezpečnosti (kapitola 9) | ✅ **Hotovo a otestováno (1.3.2)** | Body A–I z 9.1 hotové. Ověření 9.2/1 (build, `-Xlint`), 9.2/2 (`PlayerNames` + `String.replace`) a 9.2/3 (testovací server) prošlo (2026-11-02). Zbývá nasazení na produkci podle 9.3. |
-| 1 – log výplat (HUNT-014) | ✅ **Hotovo a otestováno (1.3.2)** | Každé splnění zapíše řádek do `config/hunt/payouts.log` (JSON Lines) a INFO do `latest.log`. Nově se loguje i `success=false` od ekonomiky (WARN, `DECLINED`). Vyjde v jednom releasu s krokem 0. Build zelený, test na serveru (9.2/3 g–l) prošel (2026-11-02). |
-| 2–9 | ⬜ Neprovedeno | |
+| 0 – hotfix bezpečnosti (kapitola 9) | ✅ **Hotovo a otestováno (1.3.2)** | Body A–I z 9.1 hotové. Ověření 9.2/1 (build, `-Xlint`), 9.2/2 (`PlayerNames` + `String.replace`) a 9.2/3 (testovací server) prošlo (2026-11-02). Na produkci nasazeno 2026-11-02 jako součást 1.3.3. |
+| 1 – log výplat (HUNT-014) | ✅ **Hotovo a otestováno (1.3.2)** | Každé splnění zapíše řádek do `config/hunt/payouts.log` (JSON Lines) a INFO do `latest.log`. Nově se loguje i `success=false` od ekonomiky (WARN, `DECLINED`). Vyšlo s krokem 0, na produkci nasazeno 2026-11-02 jako součást 1.3.3. Build zelený, test na serveru (9.2/3 g–l) prošel (2026-11-02). |
+| 2 – config se nesmí přepsat (HUNT-004, 012, 016) | ✅ **Hotovo a otestováno (1.3.3)** | Chybný `config.json` na startu Hunt pozastaví (žádné hunty ani odměny, ERROR „PAUSED“). Reload s chybou ponechá starý config a ohlásí to adminovi. Config, lang, hunts i stats se zapisují atomicky přes `FileStore` s rotujícími zálohami `.bak.1–3`. `FileStore.read` rozlišuje „neexistuje“ a „nejde přečíst“. Migrace langu bere texty ze souboru. Build zelený (`-Xlint:all` bez nových varování), offline kontrola parserů a `FileStore` prošla (2026-11-02). Test na testovacím serveru (10.2/2, scénáře a–t) proběhl a prošel (2026-11-02), rotace záloh ověřena i na souborech po restartu. **Nasazeno na produkci (1.3.3) 2026-11-02.** Viz kapitola 10. |
+| 3–9 | ⬜ Neprovedeno | |
 
 ---
 
@@ -148,7 +149,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 
 ### Vysoká
 
-#### HUNT-004 · Chyba v configu přepíše config výchozími hodnotami · C/E · [ověřeno]
+#### ✅ HUNT-004 · [opraveno v 1.3.3, krok 2] · Chyba v configu přepíše config výchozími hodnotami · C/E · [ověřeno]
 - **Kde:** `config/Config.java:60-119`, `util/Utils.java:125-181`, `config/Lang.java:119-178`.
 - **Popis:** Gson výjimka v callbacku → `readFileAsync` ji chytí → `readFileSync` zavolá callback znovu → `false` → `Config.init` vypíše *„No config.json file found“* a `write()` zapíše **aktuální objekt v paměti** přes soubor admina (`Config.java:108-110`).
   - Při **startu** je v paměti `new Config()`, tedy výchozí hodnoty: 100/500/700/1000 v primární měně Impactoru, `give {player} minecraft:diamond 1–4`, Magikarp za 500 (`RewardsConfig.java:15-18`, `CustomPrice.java:9-12`). Server tak běží s výchozí ekonomikou a adminův config je pryč.
@@ -156,6 +157,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
   - Zápis configu a langu (`Utils.writeFileAsync`) **není atomický** (`TRUNCATE_EXISTING` a jeden `write` bez kontroly počtu zapsaných bajtů). Pád během zápisu nechá prázdný nebo useknutý soubor a při dalším startu nastane výše popsaný scénář.
 - **Scénář:** Admin přidá do `customPrices` položku a zapomene čárku, pak restartuje. Hunt běží s výchozími cenami, hráči dostávají diamanty a peníze podle defaultů a v logu je jen INFO „No config.json file found“.
 - **Oprava:** Rozlišit „soubor neexistuje“ od „soubor je nečitelný“. Při chybě parsování **nikdy nepřepisovat**: na startu odmítnout start Hunt (nebo běžet bez odměn) s ERROR, při reloadu ponechat starý config. Config a lang zapisovat přes `FileStore` (tmp + atomic move). **M**.
+- **Doplněk (krok 2):** další cesta ke stejnému přepisu: `Versioned` nemá no-arg konstruktor, takže když v `config.json` chybí `version`, `versioned.getVersion().equals(...)` vyhodí NPE a `readFileAsync` vrátí `false` → přepis výchozími hodnotami. **Rozhodnutí provozovatele:** chybný config na startu = Hunt pozastaven (ne „běží bez odměn“). Řešení viz kapitola 10.
 
 #### HUNT-007 · Výplata není transakční vůči stavu huntu a selhání není vidět · A/C · [ověřeno v kódu; scénář pádu je podezření]
 - **Kde:** `event/CaptureEvent.java:38-76`, `Hunt.java:118-123` (ukládá se nejvýš jednou za 30 s).
@@ -196,7 +198,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 - **Oprava:** Účet předem načíst při joinu, případně platit asynchronně a výsledek vrátit na hlavní vlákno (`server.execute`). Instanci služby cachovat. **S–M**.
 - **Otázka:** Jaký storage backend používá Impactor na serveru?
 
-#### HUNT-012 · Chyba IO při čtení dat = „soubor neexistuje“ → přepsání · C · [ověřeno]
+#### ✅ HUNT-012 · [opraveno v 1.3.3, krok 2] · Chyba IO při čtení dat = „soubor neexistuje“ → přepsání · C · [ověřeno]
 - **Kde:** `util/FileStore.java:49-51` (IOException → `null`), `stats/HuntStats.java:54-69`, `hunts/HuntStorage.java:69-72`.
 - **Scénář:** Přechodná chyba práv nebo disku v kontejneru Pterodactyl při startu. Stats začnou prázdné, při první completion se nastaví dirty a za 30 s se `stats.json` **přepíše** téměř prázdným souborem. Žádná záloha nevznikne (`backupBroken` se volá jen při chybě parsování a navíc přepisuje předchozí `.broken`).
 - **Oprava:** IOException při čtení = fatální pro daný store (neukládat a hlasitě logovat). Rotující zálohy (`stats.json.bak.N`) před přepisem. **S**.
@@ -214,7 +216,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 - Projekt nemá ani jeden test. Doménová logika (`CurrentHunts`, `SingleHunt.matches`, výběr rarity) sahá přímo na `Hunt.config`, `Hunt.server`, `Hunt.broadcaster` a `Hunt.storage`, takže ji nejde testovat bez běžícího serveru. Každá oprava proto nese riziko regrese.
 - **Oprava:** Viz kapitola 7 (doménové jádro bez MC importů + JUnit 5). **M–L**.
 
-#### HUNT-016 · Nesoulad verze lang.json zapíše výchozí texty · C · [ověřeno]
+#### ✅ HUNT-016 · [opraveno v 1.3.3, krok 2] · Nesoulad verze lang.json zapíše výchozí texty · C · [ověřeno]
 - **Kde:** `config/Lang.java:125-139`. Když `version` chybí nebo nesedí, nastaví se pole z `new LangOld()` (výchozí, **ne ze souboru**) a zavolá se `write()`. V paměti se pak použijí hodnoty ze souboru, ale na disku zůstanou výchozí texty a po dalším restartu je překlad pryč.
 - **Oprava:** Migrovat z načteného obsahu. **S**.
 
@@ -229,7 +231,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 | HUNT-021 | A | `hunts/SingleHunt.java:285-287` | Hunt Pokémon nikdy není shiny, takže `matchProperties.shiny=true` znamená „shiny se NEpočítá“. Matoucí. [ověřeno] | Přejmenovat nebo zdokumentovat, případně možnost „shiny bonus“. | S |
 | HUNT-022 | A | `hunts/SpawnRates.java:159-161` | Vyřazuje se jen label `legendary`. `mythical`, `ultra_beast` a `paradox` projdou, pokud je nějaký datapack nebo addon dá do world poolu. [ověřeno, výskyt je otázka] | Konfigurovatelný seznam vyřazených labelů. | S |
 | HUNT-023 | F | `fabric.mod.json`, `build.gradle` | `cobblemon >=1.8.0` bez horní hranice (1.8 už jednou rozbila spawning API, viz komentář `SpawnRates.java:47-51`). Chybí `fabric-api` v `depends`, `icon.png` neexistuje, `environment: "*"` u server-only módu. SNAPSHOT závislosti, Gradle deprecations (kap. 3), `gradlew` bez +x. [ověřeno] | `cobblemon: ">=1.8.0 <1.9"`, doplnit depends, pinout verze. | S |
-| HUNT-024 | F | `command/subcommand/DebugCommand.java`, `old/*`, `Settings.java`, `forge/*`, `util/Utils.java:44-181` | Mrtvý nebo matoucí kód: neregistrovaný Debug (navíc hlásí slot −1), prázdný `Settings.java` v rootu. `readFileAsync`/`writeFileAsync` jsou ve skutečnosti synchronní (`join`, `get`) a `writeFileAsync` nekontroluje částečný zápis. NeoForge modul na Fabric serveru nikdo netestuje. [ověřeno] | Smazat, sjednotit IO na `FileStore`. | S |
+| HUNT-024 | F | `command/subcommand/DebugCommand.java`, `old/*`, `Settings.java`, `forge/*`, `util/Utils.java:44-181` | Mrtvý nebo matoucí kód: neregistrovaný Debug (navíc hlásí slot −1), prázdný `Settings.java` v rootu. `readFileAsync`/`writeFileAsync` jsou ve skutečnosti synchronní (`join`, `get`) a `writeFileAsync` nekontroluje částečný zápis. NeoForge modul na Fabric serveru nikdo netestuje. [ověřeno] | Smazat, sjednotit IO na `FileStore`. **Krok 2 (1.3.3):** `Utils` IO metody a mrtvé `LangOld.init` / `ConfigOld.write` jsou odstraněné, veškeré IO jde přes `FileStore`. `LangOld` už nikdo nepoužívá. | S |
 | HUNT-025 | B/D | `broadcast/Broadcaster.java:20`, `hunts/HuntManager.java:66-71` | `playerBuffers` roste do reloadu (malý leak, 1 záznam na hráče). `checkOnlinePlayers` každou sekundu kopíruje množinu **všech** známých UUID a hledá je mezi online hráči. Iterovat stačí online hráče. [ověřeno] | Iterovat `getPlayerList().getPlayers()`, čistit při disconnectu. | S |
 | HUNT-026 | A | `hunts/CurrentHunts.java:66, 192-197` | `taken` se počítá až po odebrání splněného huntu, takže stejný druh může být hned znovu vylosován. Hráč na spawnu daného druhu dostane šanci 1/|bucket| na okamžité další splnění. [ověřeno, malý dopad] | Vyloučit právě splněný cíl. | S |
 | HUNT-027 | A/F | `command/basecommand/HuntCommand.java:127,161-163` | GUI je statické (čas se neaktualizuje). Hráči se zobrazuje `e.getMessage()` (interní detaily). GooeyLibs `GooeyContainer` přepisuje `clicked()` i `quickMoveStack()` a volá `patchDesyncs` [ověřeno v bytecode], takže vytažení itemů je nepravděpodobné a GUI nemá akce. **Doporučuji ruční test** (shift-click, čísla 1–9, drag, double-click, Q, zavření při lagu). | Generická hláška hráči. | S |
@@ -373,7 +375,7 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 |---|---|---|---|
 | 0 | ✅ **HOTOVO (1.3.2)** · **Hotfix bezpečnosti:** substituce placeholderů přes `String.replace` (literál), validace jména `^[A-Za-z0-9_]{1,16}$` před spuštěním příkazů (při neshodě příkazy přeskočit + WARN), nový placeholder `{uuid}`; `try/catch (Throwable)` kolem celého capture handleru, `Hunt.check()` a každého `HuntEvents` listeneru | 001, 002, 003 | S |
 | 1 | ✅ **HOTOVO (1.3.2)** · **Log výplat:** jeden INFO řádek na completion (`uuid, jméno, huntId, druh/forma, bucket, cena, výsledek ekonomiky, provedené příkazy`), ideálně do `config/hunt/payouts.log` | 014 | S |
-| 2 | **Config se nesmí přepsat:** rozlišit „neexistuje“ a „nečitelný“; při chybě parsování na startu běžet bez odměn + ERROR, při `/hunt reload` ponechat starý config; config a lang zapisovat přes `FileStore` (atomicky); opravit migraci langu; `FileStore.read` při IOException neházet „soubor neexistuje“ | 004, 012, 016 | M |
+| 2 | ✅ **HOTOVO (1.3.3)** · **Config se nesmí přepsat:** rozlišit „neexistuje“ a „nečitelný“; při chybě parsování na startu běžet bez odměn + ERROR, při `/hunt reload` ponechat starý config; config a lang zapisovat přes `FileStore` (atomicky); opravit migraci langu; `FileStore.read` při IOException neházet „soubor neexistuje“ | 004, 012, 016 | M |
 | 3 | **Testy:** JUnit 5 v `common`; testy substituce (`@a`, `Ash$1`, `a\`, `x;y`, `"`), `RarityConfig.getRandomRarity`, načítání rozbitého configu | 015 (část) | S |
 | 4 | **`CompletionService`:** vyčlenit výplatní tok z `CaptureEvent` (claim → log PENDING → ekonomika → příkazy jen při úspěchu → log DONE → stats), po completion vynutit uložení `hunts.json`; testy (selhání ekonomiky, dvojí completion) | 007 | M |
 | 5 | **Oprávnění:** `requires` přes `CommandSourceStack` místo `isPlayer() ? check : true`; sjednotit `/hunt` a `/hunts` a opravit README | 009, 017 | S |
@@ -392,8 +394,8 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 
 1. **Hned: ověřit podmínky 2–4 z HUNT-001** (`velocity.toml` `try`/forced-hosts, přímý přístup na port backendu, přepnutí serveru před přihlášením) a udělat test na testovací instanci se jménem `Test$1`. AuthMe má regex `[a-zA-Z0-9_]*`, takže pokud tyto tři podmínky platí, je server dnes chráněný a stačí bod 3.
 2. **Jen pokud ověření selže** (hráč se jménem mimo `[A-Za-z0-9_]` se dostane na Cobblemon server): okamžitě odstranit `{player}` z `captureHuntBroadcast` v `lang.json` a z reward příkazů, pak `/hunt reload`. Odměny přes příkazy tím do hotfixu přestanou fungovat. Placeholder `{uuid}` (vanilla `give` UUID přijme) přidá až krok 0.
-3. **Kroky 0 a 1 jako jeden hotfix release.** Po nasazení 1–2 dny sledovat `payouts.log`. Měna je převoditelná, takže log je jediný způsob, jak zpětně najít případné zneužití.
-4. Krok 2 (config) před další úpravou `config.json` na produkci.
+3. **Kroky 0 a 1 jako jeden hotfix release.** ✅ Nasazeno 2026-11-02 (v 1.3.3 spolu s krokem 2). Po nasazení 1–2 dny sledovat `payouts.log`. Měna je převoditelná, takže log je jediný způsob, jak zpětně najít případné zneužití.
+4. Krok 2 (config) před další úpravou `config.json` na produkci. **Hotovo, otestováno a nasazeno v 1.3.3 (2026-11-02)** (kapitola 10).
 5. Kroky 3–4 (testy a `CompletionService`), pak 5–6.
 6. Kroky 7–9 průběžně.
 7. Ruční test GUI (HUNT-027) a test spawn zdrojů (HUNT-010) na testovacím serveru se stejným modpackem.
@@ -402,7 +404,7 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 
 ## 9. Plán kroku 0: hotfix bezpečnosti (revize 2) · ✅ HOTOVO a otestováno (1.3.2)
 
-**Stav:** Změny A–I z 9.1 jsou implementované. Z 9.2 prošly body 1 (build zelený, `-Xlint:all` bez nových varování, zůstává jen známé `[this-escape]` v `HuntForge`) a 2 (skript proti `PlayerNames` a `String.replace`: bezpečné je jen `Normal_1`, žádná výjimka, jméno se dosadí doslova). **Bod 3 (testovací server, scénáře a–f a pro krok 1 scénáře g–l) prošel 2026-11-02. Nasazení podle 9.3 zatím neproběhlo.** Odchylka od plánu: v individuálním režimu je `manager.checkOnlinePlayers()` chráněné jako celek, ne po jednotlivých huntech (režim se nepoužívá, `HuntManager` jsem neměnil). Build vypisuje „Could not remap …-sources.jar fully“ (NPE v Mercury). Ten se objevuje i na 1.3.1 a týká se jen jaru se zdrojáky.
+**Stav:** Změny A–I z 9.1 jsou implementované. Z 9.2 prošly body 1 (build zelený, `-Xlint:all` bez nových varování, zůstává jen známé `[this-escape]` v `HuntForge`) a 2 (skript proti `PlayerNames` a `String.replace`: bezpečné je jen `Normal_1`, žádná výjimka, jméno se dosadí doslova). **Bod 3 (testovací server, scénáře a–f a pro krok 1 scénáře g–l) prošel 2026-11-02. Na produkci nasazeno 2026-11-02 v rámci 1.3.3 (obsahuje kroky 0, 1 a 2).** Odchylka od plánu: v individuálním režimu je `manager.checkOnlinePlayers()` chráněné jako celek, ne po jednotlivých huntech (režim se nepoužívá, `HuntManager` jsem neměnil). Build vypisuje „Could not remap …-sources.jar fully“ (NPE v Mercury). Ten se objevuje i na 1.3.1 a týká se jen jaru se zdrojáky.
 
 **Cíl:** Odstranit HUNT-001, HUNT-002 a HUNT-003 přímo v módu, aby bezpečnost nestála jen na AuthMe, a aby žádná výjimka z Hunt nemohla shodit server.
 **Mimo rozsah** (řeší pozdější kroky): log výplat (krok 1), config a přepisování souborů (krok 2), testy v Gradle (krok 3), transakční výplata (krok 4), `requires` (krok 5).
@@ -454,3 +456,83 @@ Mimo rozsah zůstávají `Broadcaster`, `CurrentHunts`, `SingleHunt`, config a l
 - **Změna chování:** pro jména mimo `[A-Za-z0-9_]` se příkazy s `{player}` nespustí. Na produkci taková jména AuthMe nepustí, takže se to neprojeví.
 - **Rozdělení `replaceHunt`** na `removeHunt` + `addHunt` v `CaptureEvent` musí zachovat pořadí zpráv: náhradní hunt (a jeho STARTED broadcast) před CAPTURED broadcastem, stejně jako dnes. Hlídá to scénář 3a.
 - **Výjimka po odebrání huntu** (fáze 2–7) už nespadne server. Hráč ale může přijít o část odměny (například o příkazy), pokud selže právě tato fáze. Proto ERROR s `uuid` a `huntId` pro ruční odškodnění. Plně to řeší krok 4 (transakční `CompletionService`).
+
+---
+
+## 10. Plán kroku 2: config se nesmí přepsat (1.3.3) · ✅ HOTOVO, otestováno a nasazeno
+
+**Stav:** Změny A–M z 10.1 jsou implementované. Z 10.2 prošel bod 1 (build zelený, `-Xlint:all` bez nových varování, zůstává jen známé `[this-escape]` v `HuntForge`, `readFileAsync`/`writeFileAsync` v kódu nejsou) a offline kontrola (10.2/1b). **Bod 2 (testovací server, scénáře a–t) proběhl a prošel 2026-11-02.** Po restartech odpovídaly zálohy očekávání: `hunts.json.bak.1–2` po dvou bězích, `stats.json.bak.1`, u `config.json` a `lang.json` žádné zálohy (nebyl potřeba převod) a žádné `*.tmp` ani `*.broken`. **Nasazeno na produkci podle 10.3 2026-11-02.**
+
+**Cíl:** Hunt nikdy nepřepíše soubor, který nešel přečíst nebo naparsovat (HUNT-004, HUNT-012, HUNT-016). Všechny zápisy jsou atomické, s rotujícími zálohami.
+**Rozhodnutí provozovatele (2026-11-02):** (1) chybný `config.json` na startu → **Hunt pozastaven**: hunty se nenačtou ani negenerují, chycení nic nesplní a `hunts.json` se neukládá; po opravě `/hunt reload` dokončí start. (2) Rotace `.bak.1–3` **při prvním přepisu souboru v každém běhu** (`.bak.1` = stav při posledním startu).
+**Mimo rozsah:** validace hodnot (krok 6), `PayoutLog` (beze změny), individuální režim.
+**Datové formáty se nemění.** Návrat na 1.3.2 = výměna jaru.
+
+### 10.1 Změny po souborech
+| # | Soubor | Změna | Řeší |
+|---|---|---|---|
+| A | `util/FileStore.java` | `read` vrací `sealed ReadResult`: `Missing` (`NoSuchFileException`), `Ok(content)` a `Failed(IOException)`. `Files.exists` odpadá (při chybě práv vrací `false`). | 012, 004 |
+| A2 | `util/FileStore.java` | `write` před atomickým `move` rotuje zálohy: při prvním přepisu souboru v běhu `.bak.2 → .bak.3`, `.bak.1 → .bak.2` a kopie cíle → `.bak.1`. Selhání zálohy = WARN, zápis pokračuje. `payouts.log` (append) se nerotuje. | 012 |
+| A3 | `util/FileStore.java` | `write` i `writeSync` vrací `boolean`. | 004 |
+| B | `config/Versioned.java` | `protected setVersion`. | 004, 016 |
+| C | `config/Config.java`, nový `config/ConfigLoadException.java` | `static Config parse(String)` vrací nový objekt nebo vyhodí `ConfigLoadException`. Lenientní `JsonParser.parseString` jako dřív. Root musí být objekt (prázdný soubor, `[]` → chyba). Sekce `economy`, `rarity`, `rewards`, `matchProperties`, `customPrices` a `blacklist` nesmí být `null`. Zachovány úpravy `huntAmount ≤ 28` a `packIconItem`. Verze se čte z rootu JSON. Chybějící nebo jiná verze → migrace `ConfigOld` (`currencyName` jen pokud není `null`) a `upgraded`. Chybí `usePackIcons` → `upgraded`. `init()` a `write()` jsou pryč. | 004 |
+| D | `config/Lang.java` | `static Lang parse(String)`: texty ze souboru, chybějící klíče doplní defaulty. Chybějící nebo jiná verze → `setVersion` a `upgraded`. **Migrace z načteného obsahu**, `LangOld` se nepoužívá. | 016 |
+| E | `Hunt.java` | `loadConfigs(startup)` → `LoadReport(configOk, started, errors)`. Config: `Missing` na startu → výchozí soubor (první instalace). `Missing`, `Failed` nebo neplatný na startu → **pauza**. Na reloadu → starý config v paměti. Soubor se v žádném z těchto případů nepřepisuje. Lang: chyba na startu → výchozí texty v paměti, na reloadu → staré texty. Platný soubor s `upgraded` → `FileStore.writeSync` (originál zůstane v `.bak.1`). `load()` načte stats vždy, při chybném configu vypíše ERROR banner „Hunt is PAUSED“ a nespustí `start()` (restore huntů, `fillHunts`, `loaded = true`). `reload()` při pauze a platném configu zavolá `start()`. Nové `isActive()`. | 004 |
+| F | `command/subcommand/ReloadCommand.java` | Chyby z reportu jdou adminovi červeně do chatu (a jako ERROR do logu v `Hunt`). Při startu z pauzy „Config loaded, Hunt started.“, jinak připomínka, že Hunt je pořád pozastaven. | 004 |
+| G | `event/CaptureEvent.java` | Pojistka `if (!Hunt.isActive()) return`. | 004 |
+| H | `RefreshCommand.java`, `HuntCommand.java` | Při pauze `refresh` odmítne a GUI ukáže „Hunts are temporarily unavailable.“ | 004 |
+| I | `stats/HuntStats.java` | `stats.json` `Failed` (nebo chybějící `stats.json` a `Failed` `logs.json`) → `writable = false`, ERROR. `saveIfDirty` loguje jednou za běh, `saveNow` vždy. Chyba parsování beze změny (`.broken`). | 012 |
+| J | `hunts/HuntStorage.java` | `hunts.json` `Failed` → nové hunty se vygenerují, ale soubor se v běhu nepřepíše. | 012 |
+| K | `util/Utils.java`, `old/ConfigOld.java`, `old/LangOld.java` | Smazány `readFileAsync`, `readFileSync`, `writeFileAsync`, `writeFileSync` a mrtvé `ConfigOld.write`, `LangOld.init`. | 004, 024 |
+| L | `README.md` | Sekce *Broken config files* a *Data safety*, doplněk u `/hunt reload`. | – |
+| M | `gradle.properties` | `mod_version=1.3.3` | – |
+
+Změněno 16 souborů a 1 nový (+494 / −402 řádků).
+
+### 10.2 Ověření
+1. **Build:** `bash ./gradlew build` a `--rerun-tasks` s `-Xlint:all`: ✅ zelený, žádné nové varování.
+   - **1b. Offline kontrola** (jednorázový skript ve scratchpadu proti `common/build/classes`, bez serveru): ✅
+     - `Config.parse`: výchozí config OK. Prázdný soubor, `[]`, chybějící čárka (hláška „Unterminated object at line 10 column 23“), `"rewards": null` a `"huntAmount": "abc"` → `ConfigLoadException`. Bez `version` a s verzí `1.2.2` → OK, `upgraded`, měna zachována. `huntAmount` 40 → 28. Bez `usePackIcons` → `upgraded`.
+     - `Lang.parse`: rozbitý JSON → výjimka. `"version": "0.9"` i bez `version` → vlastní texty zachované, verze `1.0.0`, `stats*` doplněné a `upgraded`.
+     - `FileStore`: neexistující soubor → `Missing`. `chmod 000` → `Failed` (`AccessDeniedException`) + ERROR. Čtyři „běhy“ se třemi zápisy → v každém běhu jediná rotace, maximálně `.bak.3`, žádný `.tmp`.
+2. **Testovací server** (offline mode, stejný modpack, `matchProperties` `false`, `/spawnpokemon`; před každým scénářem zálohovat `config/hunt/`, „beze změny“ = `sha256sum` před a po). ✅ **Proběhlo a prošlo (2026-11-02), scénáře a–t bez nálezů.**
+   - **Config, startup:**
+     - a) Čistá instalace → vznikne `config.json` a `lang.json`, žádný `.bak`, hunty běží.
+     - b) Rozbitý JSON (chybí čárka v `customPrices`) → ERROR „PAUSED“ s řádkem a sloupcem. `config.json`, `hunts.json` i `stats.json` beze změny i po `/stop`. `/hunt` hlásí pauzu, `/hunt refresh` odmítne, chycení nic neudělá (žádný řádek v `payouts.log`), `/hunt stats` funguje. Oprava + `/hunt reload` → „Hunt started“, hunty obnovené z `hunts.json`, výplata podle configu.
+     - c) Prázdný `config.json` a `[]` → jako b).
+     - d) Config bez `version` → migrace, hodnoty zachované, `config.json.bak.1` = originál.
+     - e) `chmod 000 config.json` (server ne jako root) → pauza, ERROR `AccessDeniedException`, soubor beze změny.
+   - **Config, reload:**
+     - f) Rozbitý JSON → červená hláška v chatu a ERROR v logu, soubor beze změny, vyplácí se **stará** cena. Oprava → `reloadMessage`, nové hodnoty platí.
+     - g) Platná změna `huntAmount` 7 → 9 → hunty se doplní.
+     - h) Chybějící config → „missing, previous config is still in use“, soubor nevznikne.
+     - i) `chmod 000` → starý config zůstane, hláška v chatu i logu.
+   - **Lang:**
+     - j) Rozbitý `lang.json` na startu → výchozí texty, soubor beze změny, Hunt běží **s odměnami**. Na reloadu → staré texty a hláška.
+     - k) Starý `lang.json` (vlastní `captureHuntBroadcast`, verze `0.9` nebo bez verze, bez `stats*`) → přepsán s vlastními texty, verzí `1.0.0` a doplněnými `stats*`, `.bak.1` = originál. Po dalším restartu texty pořád vlastní.
+     - l) Chybějící `lang.json` na startu → vygeneruje se.
+   - **Data:**
+     - m) `chmod 000 stats.json` → ERROR, Hunt běží. Po splnění huntu, > 30 s a `/stop` je ERROR „not saved“ a soubor beze změny.
+     - n) `chmod 000 hunts.json` → nové hunty, soubor se nepřepíše.
+     - o) Chybí `stats.json` a `logs.json` je nečitelný → `stats.json` nevznikne.
+     - p) Rozbitý JSON ve `stats.json` → `.broken` jako dřív, `.bak.1` = rozbitý originál.
+   - **Zálohy:**
+     - q) První uložení `stats.json` v běhu vytvoří `.bak.1`, další uložení ho nemění (mtime). Čtyři restarty se změnou dat → `.bak.1–3`, nikdy `.bak.4`.
+     - r) Žádný `*.tmp` po zápisech.
+   - **Regrese:**
+     - s) 9.2/3 a) a g) (výplata a řádek `PAID`) beze změny.
+     - t) Data z 1.3.3 načte 1.3.2.
+
+### 10.3 Nasazení a rollback
+1. **Před nasazením ověřit produkční soubory:** `jq . config/hunt/config.json` a `jq . config/hunt/lang.json`. `jq` je přísnější než lenientní Gson, takže když selže, zkontrolovat obsah ručně. Ověřit `"version": "1.2.3"`. Jinak Hunt nastartuje pozastavený.
+2. Zálohovat `config/hunt/` a jar 1.3.2. Nasadit 1.3.3 při restartu.
+3. Po startu: `grep -E "Hunt.*(PAUSED|ERROR)" logs/latest.log` je prázdné a `/hunt` ukazuje hunty.
+4. **Rollback:** vrátit jar 1.3.2. Formáty jsou stejné a `.bak.*` 1.3.2 ignoruje. 1.3.2 ale chybný config znovu přepíše výchozími hodnotami.
+
+### 10.4 Rizika a odchylky od plánu
+- **Pauza místo tichého startu:** opravdu rozbitý config dřív vedl k výchozím odměnám, teď vede k pauze. Je to záměr, proto 10.3/1. Config bez `version` (dřív přepis) teď projde migrací.
+- **Lenientní parser** je zachovaný (`JsonParser.parseString`), takže configy, které 1.3.2 načetla, načte i 1.3.3. Výjimka jsou configy s `null` v povinné sekci nebo s nečíselnou hodnotou v číselném poli: dřív vedly k pádu nebo k přepisu, teď k pauze nebo ponechání starého configu.
+- **Chybějící `config.json` při reloadu** se negeneruje (běžící server se nesmí přepnout na výchozí odměny). Výchozí soubor vzniká jen na startu.
+- **Rotace jednou za běh:** v singleplayeru se statická množina rotovaných souborů mezi světy nemaže. Týká se jen počtu záloh.
+- **Odchylky:** `HuntStats.init()` se volá v `load()` před kontrolou configu, ne v `start()`, aby `/hunt stats` a `/hunt top` fungovaly i při pauze. Stats se při pauze nemění a neukládají (`stop()` gatuje `loaded`). `RefreshCommand` hlídá pauzu i u individuálního refreshe.
+

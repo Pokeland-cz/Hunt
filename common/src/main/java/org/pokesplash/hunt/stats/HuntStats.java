@@ -43,44 +43,81 @@ public class HuntStats {
 
 	private final HashMap<UUID, PlayerStats> players = new HashMap<>();
 	private boolean dirty = false;
+	// False if stats.json (or logs.json) exists but couldn't be read: then the file must not be overwritten.
+	private boolean writable = true;
+	private boolean lockLogged = false;
 
 	/**
 	 * Loads the stats. If there's no stats file yet, imports the money totals from the old logs.json.
 	 */
 	public void init() {
 		players.clear();
+		dirty = false;
+		writable = true;
+		lockLogged = false;
 		Gson gson = Utils.newGson();
 
-		String data = FileStore.read(FILE);
-		if (data != null) {
-			try {
-				JsonObject root = JsonParser.parseString(data).getAsJsonObject();
-				HashMap<UUID, PlayerStats> loaded = gson.fromJson(root.get("players"), PLAYERS_TYPE);
-				if (loaded != null) {
-					players.putAll(loaded);
+		switch (FileStore.read(FILE)) {
+			case FileStore.Ok ok -> {
+				try {
+					JsonObject root = JsonParser.parseString(ok.content()).getAsJsonObject();
+					HashMap<UUID, PlayerStats> loaded = gson.fromJson(root.get("players"), PLAYERS_TYPE);
+					if (loaded != null) {
+						players.putAll(loaded);
+					}
+				} catch (Exception e) {
+					Hunt.LOGGER.error("Could not parse " + FILE + ", starting with empty stats.", e);
+					FileStore.backupBroken(FILE);
 				}
-			} catch (Exception e) {
-				Hunt.LOGGER.error("Could not parse " + FILE + ", starting with empty stats.", e);
-				FileStore.backupBroken(FILE);
+				return;
 			}
-			return;
+			case FileStore.Failed failed -> {
+				lock(FILE + " could not be read (" + failed.error() + ")");
+				return;
+			}
+			case FileStore.Missing missing -> {
+				// No stats yet: import the old money totals below.
+			}
 		}
 
-		String legacy = FileStore.read(LEGACY_FILE);
-		if (legacy != null) {
-			try {
-				JsonObject root = JsonParser.parseString(legacy).getAsJsonObject();
-				HashMap<UUID, Double> earned = gson.fromJson(root.get("data"), LEGACY_TYPE);
-				if (earned != null && !earned.isEmpty()) {
-					earned.forEach((uuid, amount) ->
-							players.computeIfAbsent(uuid, u -> new PlayerStats()).addEarned(amount));
-					dirty = true;
-					Hunt.LOGGER.info("Imported money totals of " + earned.size() + " players from " + LEGACY_FILE + ".");
+		switch (FileStore.read(LEGACY_FILE)) {
+			case FileStore.Ok ok -> {
+				try {
+					JsonObject root = JsonParser.parseString(ok.content()).getAsJsonObject();
+					HashMap<UUID, Double> earned = gson.fromJson(root.get("data"), LEGACY_TYPE);
+					if (earned != null && !earned.isEmpty()) {
+						earned.forEach((uuid, amount) ->
+								players.computeIfAbsent(uuid, u -> new PlayerStats()).addEarned(amount));
+						dirty = true;
+						Hunt.LOGGER.info("Imported money totals of " + earned.size() + " players from " + LEGACY_FILE + ".");
+					}
+				} catch (Exception e) {
+					Hunt.LOGGER.warn("Could not import " + LEGACY_FILE + ": " + e.getMessage());
 				}
-			} catch (Exception e) {
-				Hunt.LOGGER.warn("Could not import " + LEGACY_FILE + ": " + e.getMessage());
+			}
+			// Without this, a new stats.json would be written and the old totals never imported.
+			case FileStore.Failed failed -> lock(LEGACY_FILE + " could not be read (" + failed.error() + ")");
+			case FileStore.Missing missing -> {
 			}
 		}
+	}
+
+	private void lock(String reason) {
+		writable = false;
+		Hunt.LOGGER.error(reason + ". Hunt stats will NOT be saved this run, so the file isn't overwritten. "
+				+ "Fix the file (permissions) and restart the server.");
+	}
+
+	/**
+	 * @return false if the stats file couldn't be read, so it isn't overwritten. Logs that once per run,
+	 * or every time if always is true.
+	 */
+	private boolean canSave(boolean always) {
+		if (!writable && (always || !lockLogged)) {
+			lockLogged = true;
+			Hunt.LOGGER.error("Hunt stats were not saved: " + FILE + " could not be read at startup.");
+		}
+		return writable;
 	}
 
 	public void recordCompletion(ServerPlayer player, Bucket bucket, double earned) {
@@ -131,13 +168,16 @@ public class HuntStats {
 	}
 
 	public void saveIfDirty() {
-		if (dirty) {
+		if (dirty && canSave(false)) {
 			dirty = false;
 			FileStore.writeAsync(FILE, serialize());
 		}
 	}
 
 	public void saveNow() {
+		if (!canSave(true)) {
+			return;
+		}
 		dirty = false;
 		FileStore.writeSync(FILE, serialize());
 	}

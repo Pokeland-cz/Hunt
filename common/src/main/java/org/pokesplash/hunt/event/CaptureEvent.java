@@ -25,6 +25,10 @@ public abstract class CaptureEvent {
 	public static void registerEvents() {
 		// Capture event checks the current hunts.
 		CobblemonEvents.POKEMON_CAPTURED.subscribe(Priority.NORMAL, e -> {
+			// While Hunt is paused (config.json couldn't be loaded) nothing can be completed or paid.
+			if (!Hunt.isActive()) {
+				return Unit.INSTANCE;
+			}
 			ServerPlayer player = e.getPlayer();
 			Pokemon pokemon = e.getPokemon();
 			UUID huntId = null;

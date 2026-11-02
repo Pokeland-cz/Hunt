@@ -27,7 +27,7 @@ A hunt mod for [Cobblemon](https://cobblemon.com/). Allows players to gain money
 | `/hunt top [completions\|earned]` | `hunt.top` | Shows the top 10 hunters. |
 | `/hunt refresh` | `hunt.refresh` | Re-rolls all global hunts. |
 | `/hunt refresh <player>` | `hunt.refresh` | Re-rolls a player's individual hunts. |
-| `/hunt reload` | `hunt.reload` | Reloads the configs. Current hunts are kept and trimmed or topped up to the hunt amount. |
+| `/hunt reload` | `hunt.reload` | Reloads the configs. Current hunts are kept and trimmed or topped up to the hunt amount. A file that can't be loaded is left untouched and the previous version stays in use (see *Broken config files*). |
 
 ## Placeholders
 
@@ -49,6 +49,13 @@ A command that contains `{player}` is skipped, with a warning in the log, if the
 - **Blacklist:** an entry blocks a species and all its forms (`"Vulpix"`), or a single form with `Species-Form` (`"Vulpix-Alola"`).
 - **Custom prices:** an entry with a `form` wins over an entry for the whole species.
 - **Payout log:** every completed hunt adds one JSON line to `config/hunt/payouts.log` (never overwritten) and a `Hunt payout: …` line to the server log. Fields: `time` (UTC), `uuid`, `name`, `huntId`, `target` (`species/form`), `bucket`, `price`, `economy`, `outcome`, `paid`, `error`, `caughtPokemon` (the caught Pokemon's UUID) and `commands` (each with `command`, `status` and `result`). `outcome` is `PAID`, `DECLINED` (the economy refused), `ERROR` (the economy failed, see `error`) or `NO_PRICE`. A command's `status` is `RAN`, `SKIPPED_UNSAFE_NAME` or `FAILED`. To find a player's payouts: `grep '"uuid":"<uuid>"' config/hunt/payouts.log`, or with jq: `jq -c 'select(.name == "Steve")' config/hunt/payouts.log`.
+- **Broken config files:** Hunt never overwrites a file it couldn't read or parse.
+  - `config.json` broken or unreadable **at startup**: Hunt is **paused**. There are no hunts and no rewards, and the server log shows an ERROR saying `Hunt is PAUSED` with the reason (for JSON errors, the line and column). Fix the file, then run `/hunt reload` to start Hunt. Saved hunts and stats are kept.
+  - `config.json` broken, unreadable or missing **on `/hunt reload`**: the previous config stays in use, and the admin sees the reason in chat and in the log.
+  - `lang.json` broken or unreadable: the default texts are used at startup and the previous texts on reload. Rewards are not affected.
+  - A missing `config.json` or `lang.json` is only generated with the defaults at startup.
+  - Older `config.json`/`lang.json` files are upgraded in place, keeping your values and texts. The original is kept as `*.bak.1`.
+- **Data safety:** `hunts.json`, `stats.json`, `config.json` and `lang.json` are written atomically (temp file + move). Before a file is overwritten for the first time after a server start, the previous version is kept as `<file>.bak.1`, and older copies move up to `.bak.2` and `.bak.3`. So `.bak.1` is the file as it was at the last start. If `hunts.json` or `stats.json` exists but can't be read (e.g. wrong permissions), Hunt logs an ERROR and doesn't save that file until the next restart.
 - **Icons:** `usePackIcons` (on by default) shows species icons from a resource pack that overrides `packIconItem` (default `minecraft:gray_dye`) with `custom_model_data` set to the National Pokedex number, and `0` as a fallback icon. Forms use the base species icon.
 
 

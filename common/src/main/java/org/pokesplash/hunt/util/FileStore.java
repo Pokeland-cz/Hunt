@@ -6,10 +6,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -21,6 +24,26 @@ import java.util.concurrent.Executors;
  */
 public final class FileStore {
 	private static final Path DIRECTORY = Paths.get("config", "hunt");
+	// How many rotating backups (file.bak.1 = newest) are kept of each file before it is overwritten.
+	private static final int BACKUPS = 3;
+	// Files already backed up in this run. Only touched on the writer thread.
+	private static final Set<String> ROTATED = new HashSet<>();
+
+	/**
+	 * The result of reading a file: it doesn't exist, it was read, or it exists but couldn't be read.
+	 * A file that couldn't be read must never be overwritten, or its contents would be lost.
+	 */
+	public sealed interface ReadResult permits Missing, Ok, Failed {
+	}
+
+	public record Missing() implements ReadResult {
+	}
+
+	public record Ok(String content) implements ReadResult {
+	}
+
+	public record Failed(IOException error) implements ReadResult {
+	}
 
 	private static final ExecutorService WRITER = Executors.newSingleThreadExecutor(runnable -> {
 		Thread thread = new Thread(runnable, "Hunt-Save");
@@ -36,20 +59,19 @@ public final class FileStore {
 	}
 
 	/**
-	 * Reads a data file.
+	 * Reads a file. "Doesn't exist" and "couldn't be read" (permissions, I/O error, invalid UTF-8)
+	 * are reported separately, so a file that couldn't be read is never mistaken for a missing one.
 	 * @param filename the file in config/hunt.
-	 * @return the contents, or null if the file doesn't exist or can't be read.
 	 */
-	public static String read(String filename) {
+	public static ReadResult read(String filename) {
 		Path path = path(filename);
-		if (!Files.exists(path)) {
-			return null;
-		}
 		try {
-			return Files.readString(path, StandardCharsets.UTF_8);
+			return new Ok(Files.readString(path, StandardCharsets.UTF_8));
+		} catch (NoSuchFileException e) {
+			return new Missing();
 		} catch (IOException e) {
-			Hunt.LOGGER.error("Could not read " + path, e);
-			return null;
+			Hunt.LOGGER.error("Could not read " + path + ": " + e, e);
+			return new Failed(e);
 		}
 	}
 
@@ -69,16 +91,19 @@ public final class FileStore {
 	}
 
 	/**
-	 * Writes a file and waits for it, and for any queued writes, to finish. Used on server shutdown.
+	 * Writes a file and waits for it, and for any queued writes, to finish.
+	 * Used on server shutdown and for config files.
+	 * @return true if the file was written.
 	 */
-	public static void writeSync(String filename, String data) {
+	public static boolean writeSync(String filename, String data) {
 		try {
-			WRITER.submit(() -> write(filename, data)).get();
+			return WRITER.submit(() -> write(filename, data)).get();
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 		} catch (ExecutionException e) {
 			Hunt.LOGGER.error("Could not write " + path(filename), e.getCause());
 		}
+		return false;
 	}
 
 	/**
@@ -106,19 +131,51 @@ public final class FileStore {
 		}
 	}
 
-	private static void write(String filename, String data) {
+	private static boolean write(String filename, String data) {
 		Path path = path(filename);
 		Path temp = path.resolveSibling(filename + ".tmp");
 		try {
 			Files.createDirectories(DIRECTORY);
 			Files.writeString(temp, data, StandardCharsets.UTF_8);
+			rotateBackups(filename);
 			try {
 				Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 			} catch (AtomicMoveNotSupportedException e) {
 				Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
 			}
+			return true;
 		} catch (IOException e) {
 			Hunt.LOGGER.error("Could not write " + path, e);
+			return false;
 		}
+	}
+
+	/**
+	 * Before a file is overwritten for the first time in this run, keeps a copy of it as file.bak.1
+	 * and shifts older copies up to file.bak.3. So file.bak.1 is the file as it was at the last start.
+	 * A failed backup is logged, but doesn't stop the write.
+	 */
+	private static void rotateBackups(String filename) {
+		Path path = path(filename);
+		if (ROTATED.contains(filename) || !Files.exists(path)) {
+			return;
+		}
+		try {
+			Files.deleteIfExists(backup(filename, BACKUPS));
+			for (int i = BACKUPS - 1; i >= 1; i--) {
+				Path from = backup(filename, i);
+				if (Files.exists(from)) {
+					Files.move(from, backup(filename, i + 1), StandardCopyOption.REPLACE_EXISTING);
+				}
+			}
+			Files.copy(path, backup(filename, 1), StandardCopyOption.REPLACE_EXISTING);
+			ROTATED.add(filename);
+		} catch (IOException e) {
+			Hunt.LOGGER.warn("Could not back up " + path + " before overwriting it: " + e);
+		}
+	}
+
+	private static Path backup(String filename, int index) {
+		return path(filename).resolveSibling(filename + ".bak." + index);
 	}
 }

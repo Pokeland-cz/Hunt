@@ -1,12 +1,9 @@
 package org.pokesplash.hunt.old;
 
-import com.google.gson.Gson;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.config.*;
-import org.pokesplash.hunt.util.Utils;
 
 import java.util.ArrayList;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Config file.
@@ -45,15 +42,6 @@ public class ConfigOld extends Versioned {
 		customPrices.add(new CustomPrice());
 		blacklist = new ArrayList<>();
 	}
-
-	private boolean write() {
-		Gson gson = Utils.newGson();
-		String data = gson.toJson(this);
-		CompletableFuture<Boolean> futureWrite = Utils.writeFileAsync("/config/hunt/", "config.json",
-				data);
-		return futureWrite.join();
-	}
-
 
 	public int getBufferDuration() {
 		return bufferDuration;

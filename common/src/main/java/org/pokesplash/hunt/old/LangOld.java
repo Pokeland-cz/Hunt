@@ -1,11 +1,5 @@
 package org.pokesplash.hunt.old;
 
-import com.google.gson.Gson;
-import org.pokesplash.hunt.Hunt;
-import org.pokesplash.hunt.util.Utils;
-
-import java.util.concurrent.CompletableFuture;
-
 /**
  * Class for customization of language.
  */
@@ -59,38 +53,5 @@ public class LangOld {
 	}
 	public String getTimeRemaining() {
 		return timeRemaining;
-	}
-
-	/**
-	 * Reads or creates the lang file.
-	 */
-	public void init() {
-		CompletableFuture<Boolean> futureRead = Utils.readFileAsync("/config/hunt/", "lang.json",
-				el -> {
-					Gson gson = Utils.newGson();
-					LangOld lang = gson.fromJson(el, LangOld.class);
-					title = lang.getTitle();
-					fillerMaterial = lang.getFillerMaterial();
-					reloadMessage = lang.getReloadMessage();
-					captureHuntBroadcast = lang.getCaptureHuntBroadcast();
-					payMessage = lang.getPayMessage();
-					endedHuntMessage = lang.getEndedHuntMessage();
-					newHuntMessage = lang.getNewHuntMessage();
-					reward = lang.getReward();
-					timeRemaining = lang.getTimeRemaining();
-				});
-
-		if (!futureRead.join()) {
-			Hunt.LOGGER.info("No lang.json file found for Hunt. Attempting to generate one.");
-			Gson gson = Utils.newGson();
-			String data = gson.toJson(this);
-			CompletableFuture<Boolean> futureWrite = Utils.writeFileAsync("/config/hunt/", "lang.json",
-					data);
-
-			if (!futureWrite.join()) {
-				Hunt.LOGGER.fatal("Could not write lang.json file for Hunt.");
-			}
-			Hunt.LOGGER.info("Hunt lang file read successfully.");
-		}
 	}
 }

@@ -63,6 +63,10 @@ public class HuntCommand extends BaseCommand {
 
 		ServerPlayer sender = context.getSource().getPlayer();
 
+		if (!Hunt.isActive()) {
+			sender.sendSystemMessage(Component.literal("§5[Hunt] §cHunts are temporarily unavailable."));
+			return 1;
+		}
 
 		try {
 			/**

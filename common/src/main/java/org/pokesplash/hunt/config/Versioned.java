@@ -11,4 +11,8 @@ public class Versioned {
     public String getVersion() {
         return version;
     }
+
+    protected void setVersion(String version) {
+        this.version = version;
+    }
 }

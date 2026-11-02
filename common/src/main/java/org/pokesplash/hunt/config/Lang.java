@@ -1,12 +1,11 @@
 package org.pokesplash.hunt.config;
 
-import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import org.pokesplash.hunt.Hunt;
-import org.pokesplash.hunt.old.LangOld;
 import org.pokesplash.hunt.util.Utils;
-
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Class for customization of language.
@@ -31,6 +30,7 @@ public class Lang extends Versioned {
 	private String topHeaderEarned;
 	private String topEntry;
 	private String topEmpty;
+	private transient boolean upgraded; // Set by parse() if the file should be rewritten in the new format.
 
 	public Lang() {
 		super(Hunt.LANG_VERSION);
@@ -114,74 +114,50 @@ public class Lang extends Versioned {
 	}
 
 	/**
-	 * Reads or creates the lang file.
+	 * Parses the contents of lang.json into a new Lang. Texts from the file are kept, keys the file
+	 * doesn't have yet get their default text. Nothing is written here.
+	 * @param json the contents of lang.json.
+	 * @return the lang; {@link #isUpgraded()} tells whether the file should be rewritten in the new format.
+	 * @throws ConfigLoadException if the file can't be parsed.
 	 */
-	public void init() {
-		CompletableFuture<Boolean> futureRead = Utils.readFileAsync("/config/hunt/", "lang.json",
-				el -> {
-					Gson gson = Utils.newGson();
-					Versioned version = gson.fromJson(el, Versioned.class);
-
-					if (version == null ||
-							version.getVersion() == null ||
-							!version.getVersion().equals(Hunt.LANG_VERSION)) {
-						LangOld langOld = new LangOld();
-						title = langOld.getTitle();
-						fillerMaterial = langOld.getFillerMaterial();
-						reloadMessage = langOld.getReloadMessage();
-						captureHuntBroadcast = langOld.getCaptureHuntBroadcast();
-						payMessage = langOld.getPayMessage();
-						endedHuntMessage = langOld.getEndedHuntMessage();
-						newHuntMessage = langOld.getNewHuntMessage();
-						reward = langOld.getReward();
-						timeRemaining = langOld.getTimeRemaining();
-						write();
-					}
-
-					Lang lang = gson.fromJson(el, Lang.class);
-					title = lang.getTitle();
-					fillerMaterial = lang.getFillerMaterial();
-					reloadMessage = lang.getReloadMessage();
-					captureHuntBroadcast = lang.getCaptureHuntBroadcast();
-					payMessage = lang.getPayMessage();
-					endedHuntMessage = lang.getEndedHuntMessage();
-					newHuntMessage = lang.getNewHuntMessage();
-					reward = lang.getReward();
-					timeRemaining = lang.getTimeRemaining();
-					lore = lang.getLore();
-					statsHeader = lang.getStatsHeader();
-					statsCompletions = lang.getStatsCompletions();
-					statsEarned = lang.getStatsEarned();
-					statsRarities = lang.getStatsRarities();
-					statsNotFound = lang.getStatsNotFound();
-					topHeaderCompletions = lang.getTopHeaderCompletions();
-					topHeaderEarned = lang.getTopHeaderEarned();
-					topEntry = lang.getTopEntry();
-					topEmpty = lang.getTopEmpty();
-
-					// Older lang files don't have the stats messages yet, write them so they can be edited.
-					if (!JsonParser.parseString(el).getAsJsonObject().has("statsHeader")) {
-						write();
-					}
-				});
-
-		if (!futureRead.join()) {
-			Hunt.LOGGER.info("No lang.json file found for Hunt. Attempting to generate one.");
-
-			boolean isSuccess = write();
-
-			if (!isSuccess) {
-				Hunt.LOGGER.fatal("Could not write lang.json file for Hunt.");
+	public static Lang parse(String json) throws ConfigLoadException {
+		JsonObject root;
+		Lang lang;
+		try {
+			JsonElement element = JsonParser.parseString(json);
+			if (!element.isJsonObject()) {
+				throw new ConfigLoadException("the file is empty or is not a JSON object");
 			}
-			Hunt.LOGGER.info("Hunt lang file read successfully.");
+			root = element.getAsJsonObject();
+			lang = Utils.newGson().fromJson(root, Lang.class);
+		} catch (JsonParseException | IllegalStateException | NumberFormatException e) {
+			throw new ConfigLoadException(e.getMessage(), e);
 		}
+
+		// Migrates from what was read: the file's texts stay, only the version and new keys change.
+		JsonElement version = root.get("version");
+		boolean currentVersion = version != null && version.isJsonPrimitive()
+				&& Hunt.LANG_VERSION.equals(version.getAsString());
+		if (!currentVersion) {
+			lang.setVersion(Hunt.LANG_VERSION);
+			lang.upgraded = true;
+		}
+
+		// Older lang files don't have the stats messages yet, write them so they can be edited.
+		if (!root.has("statsHeader")) {
+			lang.upgraded = true;
+		}
+		return lang;
 	}
 
-	private boolean write() {
-		Gson gson = Utils.newGson();
-		String data = gson.toJson(this);
-		CompletableFuture<Boolean> futureWrite = Utils.writeFileAsync("/config/hunt/", "lang.json",
-				data);
-		return futureWrite.join();
+	/**
+	 * @return true if the file was in an older format and should be rewritten.
+	 */
+	public boolean isUpgraded() {
+		return upgraded;
+	}
+
+	public String toJson() {
+		return Utils.newGson().toJson(this);
 	}
 }

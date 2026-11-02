@@ -1,6 +1,9 @@
 package org.pokesplash.hunt.config;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import org.pokesplash.hunt.Hunt;
 import org.pokesplash.hunt.enumeration.Economy;
@@ -8,7 +11,6 @@ import org.pokesplash.hunt.old.ConfigOld;
 import org.pokesplash.hunt.util.Utils;
 
 import java.util.ArrayList;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Config file.
@@ -31,6 +33,7 @@ public class Config extends Versioned {
 	private ArrayList<String> blacklist; // List if Pokemon that shouldn't be added to Hunt.
 	private boolean usePackIcons; // Show species icons from a resource pack instead of Pokemon models in /hunt.
 	private String packIconItem; // The item the resource pack overrides with custom_model_data = dex number.
+	private transient boolean upgraded; // Set by parse() if the file should be rewritten in the new format.
 
 	public Config() {
 		super(Hunt.CONFIG_VERSION);
@@ -55,77 +58,84 @@ public class Config extends Versioned {
 	}
 
 	/**
-	 * Reads the config or writes one if a config doesn't exist.
+	 * Parses the contents of config.json into a new Config. Nothing is written here: the caller
+	 * decides whether the file is (re)written, so a file that can't be parsed is never overwritten.
+	 * @param json the contents of config.json.
+	 * @return the config; {@link #isUpgraded()} tells whether the file should be rewritten in the new format.
+	 * @throws ConfigLoadException if the file can't be parsed.
 	 */
-	public void init() {
-		CompletableFuture<Boolean> futureRead = Utils.readFileAsync("/config/hunt/", "config.json",
-				el -> {
-					Gson gson = Utils.newGson();
-					Versioned versioned = gson.fromJson(el, Versioned.class);
-
-					Config cfg = gson.fromJson(el, Config.class);
-					if (cfg.getHuntAmount() > 28) {
-						huntAmount = 28;
-						Hunt.LOGGER.error("Hunt amount can not be higher than 28");
-					} else {
-						huntAmount = cfg.getHuntAmount();
-					}
-					useImpactorDefaultCurrency = cfg.isUseImpactorDefaultCurrency();
-					currencyName = cfg.getCurrencyName();
-					huntDuration = cfg.getHuntDuration();
-					individualHunts = cfg.isIndividualHunts();
-					sendHuntEndMessage = cfg.isSendHuntEndMessage();
-					sendHuntBeginMessage = cfg.isSendHuntBeginMessage();
-					timerCooldowns = cfg.isTimerCooldowns();
-					bufferDuration = cfg.getBufferDuration();
-					matchProperties = cfg.getMatchProperties();
-					customPrices = cfg.getCustomPrices();
-					blacklist = cfg.getBlacklist();
-					rarity = cfg.getRarity();
-					rewards = cfg.getRewards();
-					economy = cfg.getEconomy();
-					usePackIcons = cfg.isUsePackIcons();
-					if (cfg.getPackIconItem() != null && !cfg.getPackIconItem().isBlank()) {
-						packIconItem = cfg.getPackIconItem();
-					}
-
-					// Older configs don't have the icon options yet, write them so they are visible.
-					if (!JsonParser.parseString(el).getAsJsonObject().has("usePackIcons")) {
-						write();
-					}
-
-					if (!versioned.getVersion().equals(Hunt.CONFIG_VERSION)) {
-						ConfigOld cfgOld = gson.fromJson(el, ConfigOld.class);
-						economy = Economy.IMPACTOR;
-						currencyName = cfgOld.getImpactorCurrencyName();
-						write();
-					}
-
-
-				});
-
-		// If the config couldn't be read, write a new one.
-		if (!futureRead.join()) {
-			Hunt.LOGGER.info("No config.json file found for Hunt. Attempting to generate one.");
-			boolean futureWrite = write();
-
-			// If the write failed, log fatal.
-			if (!futureWrite) {
-				Hunt.LOGGER.fatal("Could not write config for Hunt.");
-			}
-			return;
-		}
-		Hunt.LOGGER.info("Hunt config file read successfully.");
-	}
-
-	private boolean write() {
+	public static Config parse(String json) throws ConfigLoadException {
 		Gson gson = Utils.newGson();
-		String data = gson.toJson(this);
-		CompletableFuture<Boolean> futureWrite = Utils.writeFileAsync("/config/hunt/", "config.json",
-				data);
-		return futureWrite.join();
+		JsonObject root;
+		Config cfg;
+		try {
+			JsonElement element = JsonParser.parseString(json);
+			if (!element.isJsonObject()) {
+				throw new ConfigLoadException("the file is empty or is not a JSON object");
+			}
+			root = element.getAsJsonObject();
+			cfg = gson.fromJson(root, Config.class);
+		} catch (JsonParseException | IllegalStateException | NumberFormatException e) {
+			throw new ConfigLoadException(e.getMessage(), e);
+		}
+
+		requireSection(cfg.economy, "economy");
+		requireSection(cfg.rarity, "rarity");
+		requireSection(cfg.rewards, "rewards");
+		requireSection(cfg.matchProperties, "matchProperties");
+		requireSection(cfg.customPrices, "customPrices");
+		requireSection(cfg.blacklist, "blacklist");
+
+		if (cfg.huntAmount > 28) {
+			cfg.huntAmount = 28;
+			Hunt.LOGGER.error("Hunt amount can not be higher than 28");
+		}
+		if (cfg.packIconItem == null || cfg.packIconItem.isBlank()) {
+			cfg.packIconItem = "minecraft:gray_dye";
+		}
+
+		// Older configs don't have the icon options yet, write them so they are visible.
+		if (!root.has("usePackIcons")) {
+			cfg.upgraded = true;
+		}
+
+		// The version comes from the file itself: the constructor fills in the current one for a missing key.
+		JsonElement version = root.get("version");
+		boolean currentVersion = version != null && version.isJsonPrimitive()
+				&& Hunt.CONFIG_VERSION.equals(version.getAsString());
+		if (!currentVersion) {
+			ConfigOld cfgOld;
+			try {
+				cfgOld = gson.fromJson(root, ConfigOld.class);
+			} catch (JsonParseException | IllegalStateException | NumberFormatException e) {
+				throw new ConfigLoadException(e.getMessage(), e);
+			}
+			cfg.economy = Economy.IMPACTOR;
+			if (cfgOld.getImpactorCurrencyName() != null) {
+				cfg.currencyName = cfgOld.getImpactorCurrencyName();
+			}
+			cfg.setVersion(Hunt.CONFIG_VERSION);
+			cfg.upgraded = true;
+		}
+		return cfg;
 	}
 
+	private static void requireSection(Object value, String key) throws ConfigLoadException {
+		if (value == null) {
+			throw new ConfigLoadException("\"" + key + "\" is missing or null");
+		}
+	}
+
+	/**
+	 * @return true if the file was in an older format and should be rewritten.
+	 */
+	public boolean isUpgraded() {
+		return upgraded;
+	}
+
+	public String toJson() {
+		return Utils.newGson().toJson(this);
+	}
 
 	public boolean isUsePackIcons() {
 		return usePackIcons;

@@ -21,21 +21,39 @@ public class HuntStorage {
 	private static final int VERSION = 1;
 
 	private boolean dirty = false;
+	// False if hunts.json exists but couldn't be read: then the file must not be overwritten.
+	private boolean writable = true;
+	private boolean lockLogged = false;
 
 	public void markDirty() {
 		dirty = true;
 	}
 
 	public void saveIfDirty() {
-		if (dirty) {
+		if (dirty && canSave(false)) {
 			dirty = false;
 			FileStore.writeAsync(FILE, serialize());
 		}
 	}
 
 	public void saveNow() {
+		if (!canSave(true)) {
+			return;
+		}
 		dirty = false;
 		FileStore.writeSync(FILE, serialize());
+	}
+
+	/**
+	 * @return false if hunts.json couldn't be read, so it isn't overwritten. Logs that once per run,
+	 * or every time if always is true.
+	 */
+	private boolean canSave(boolean always) {
+		if (!writable && (always || !lockLogged)) {
+			lockLogged = true;
+			Hunt.LOGGER.error("Hunts were not saved: " + FILE + " could not be read at startup.");
+		}
+		return writable;
 	}
 
 	private String serialize() {
@@ -66,9 +84,21 @@ public class HuntStorage {
 	 * (e.g. their species was removed) are skipped.
 	 */
 	public void load() {
-		String data = FileStore.read(FILE);
-		if (data == null) {
-			return;
+		writable = true;
+		lockLogged = false;
+		String data;
+		switch (FileStore.read(FILE)) {
+			case FileStore.Ok ok -> data = ok.content();
+			case FileStore.Missing missing -> {
+				return;
+			}
+			case FileStore.Failed failed -> {
+				writable = false;
+				Hunt.LOGGER.error(FILE + " could not be read (" + failed.error() + "). New hunts are generated, "
+						+ "but they will NOT be saved this run, so the file isn't overwritten. "
+						+ "Fix the file (permissions) and restart the server.");
+				return;
+			}
 		}
 
 		JsonObject root;

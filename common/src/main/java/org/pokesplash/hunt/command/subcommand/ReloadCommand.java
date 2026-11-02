@@ -44,12 +44,27 @@ public class ReloadCommand extends Subcommand {
 	public int run(CommandContext<CommandSourceStack> context) {
 
 		// Keeps the current hunts; they're trimmed or topped up if the hunt amount changed.
-		Hunt.reload();
+		// Files that can't be loaded are left untouched and the previous version stays in use.
+		Hunt.LoadReport report = Hunt.reload();
 
+		if (report.errors().isEmpty()) {
+			send(context, Hunt.language.getReloadMessage());
+		} else {
+			for (String error : report.errors()) {
+				send(context, "§c[Hunt] " + error);
+			}
+		}
+		if (report.started()) {
+			send(context, "§a[Hunt] Config loaded, Hunt started.");
+		} else if (!Hunt.isActive()) {
+			send(context, "§c[Hunt] Hunt is still paused: fix config.json, then run /hunt reload again.");
+		}
+
+		return report.errors().isEmpty() ? 1 : 0;
+	}
+
+	private static void send(CommandContext<CommandSourceStack> context, String message) {
 		context.getSource().sendSystemMessage(Component.literal(Utils.formatMessage(
-				Hunt.language.getReloadMessage(),
-				context.getSource().isPlayer())));
-
-		return 1;
+				message, context.getSource().isPlayer())));
 	}
 }

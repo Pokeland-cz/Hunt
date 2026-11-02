@@ -55,6 +55,11 @@ public class RefreshCommand extends Subcommand {
 	 * Re-rolls all global hunts.
 	 */
 	private int refreshGlobal(CommandContext<CommandSourceStack> context) {
+		if (!Hunt.isActive()) {
+			context.getSource().sendSystemMessage(Component.literal(Utils.formatMessage(
+					"§cHunt is paused: fix config.json, then run /hunt reload.", context.getSource().isPlayer())));
+			return 0;
+		}
 		if (Hunt.config.isIndividualHunts()) {
 			return showUsage(context);
 		}
@@ -78,6 +83,11 @@ public class RefreshCommand extends Subcommand {
 	public int run(CommandContext<CommandSourceStack> context) {
 
 		try {
+			if (!Hunt.isActive()) {
+				context.getSource().sendSystemMessage(Component.literal(Utils.formatMessage(
+						"§cHunt is paused: fix config.json, then run /hunt reload.", context.getSource().isPlayer())));
+				return 0;
+			}
 			if (!Hunt.config.isIndividualHunts()) {
 				context.getSource().sendSystemMessage(Component.literal(Utils.formatMessage(
 						"§cIndividual Hunts are not active.", context.getSource().isPlayer()
