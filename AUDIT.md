@@ -14,8 +14,9 @@ Značení: **[ověřeno]** = viděno v kódu Hunt nebo ve zdrojácích/bytecode 
 | 0 – hotfix bezpečnosti (kapitola 9) | ✅ **Hotovo a otestováno (1.3.2)** | Body A–I z 9.1 hotové. Ověření 9.2/1 (build, `-Xlint`), 9.2/2 (`PlayerNames` + `String.replace`) a 9.2/3 (testovací server) prošlo (2026-11-02). Na produkci nasazeno 2026-11-02 jako součást 1.3.3. |
 | 1 – log výplat (HUNT-014) | ✅ **Hotovo a otestováno (1.3.2)** | Každé splnění zapíše řádek do `config/hunt/payouts.log` (JSON Lines) a INFO do `latest.log`. Nově se loguje i `success=false` od ekonomiky (WARN, `DECLINED`). Vyšlo s krokem 0, na produkci nasazeno 2026-11-02 jako součást 1.3.3. Build zelený, test na serveru (9.2/3 g–l) prošel (2026-11-02). |
 | 2 – config se nesmí přepsat (HUNT-004, 012, 016) | ✅ **Hotovo a otestováno (1.3.3)** | Chybný `config.json` na startu Hunt pozastaví (žádné hunty ani odměny, ERROR „PAUSED“). Reload s chybou ponechá starý config a ohlásí to adminovi. Config, lang, hunts i stats se zapisují atomicky přes `FileStore` s rotujícími zálohami `.bak.1–3`. `FileStore.read` rozlišuje „neexistuje“ a „nejde přečíst“. Migrace langu bere texty ze souboru. Build zelený (`-Xlint:all` bez nových varování), offline kontrola parserů a `FileStore` prošla (2026-11-02). Test na testovacím serveru (10.2/2, scénáře a–t) proběhl a prošel (2026-11-02), rotace záloh ověřena i na souborech po restartu. **Nasazeno na produkci (1.3.3) 2026-11-02.** Viz kapitola 10. |
-| 3 – testy (HUNT-015, část) | ✅ **Hotovo (bez release)** | JUnit 5 v `common`, 114 testů v 7 třídách: substituce placeholderů a blokování příkazů (`Placeholders`, nově vyčleněno z `Utils`), `PlayerNames`, `RarityConfig.getRandomRarity` (injektovaný `RandomGenerator`), `Config.parse`, `Lang.parse` a `FileStore`. `bash ./gradlew build` testy spouští a při selhání spadne. Mutační kontrola: 9 z 10 mutací zachyceno, 1 je ekvivalentní (2026-11-02). Runtime chování se nemění, vyjde s krokem 4. Nové nálezy HUNT-030, HUNT-031 a HUNT-032. Viz kapitola 11. |
-| 4–9 | ⬜ Neprovedeno | |
+| 3 – testy (HUNT-015, část) | ✅ **Hotovo (bez release)** | JUnit 5 v `common`, 114 testů v 7 třídách: substituce placeholderů a blokování příkazů (`Placeholders`, nově vyčleněno z `Utils`), `PlayerNames`, `RarityConfig.getRandomRarity` (injektovaný `RandomGenerator`), `Config.parse`, `Lang.parse` a `FileStore`. `bash ./gradlew build` testy spouští a při selhání spadne. Mutační kontrola: 9 z 10 mutací zachyceno, 1 je ekvivalentní (2026-11-02). Runtime chování se nemění, vyjde s krokem 4 (1.3.4). Nové nálezy HUNT-030, HUNT-031 a HUNT-032. Viz kapitola 11. |
+| 4 – `CompletionService` (HUNT-007) | ✅ **Hotovo a otestováno (1.3.4)** | Výplatní tok je vyčleněný do `CompletionService` s injektovanými závislostmi. Pořadí: claim → okamžité uložení `hunts.json` → PENDING v `payouts.log` (fsync, synchronně) → výplata → příkazy jen při úspěchu → stats → DONE. Při selhání ekonomiky se příkazy přeskočí a hráč dostane `payFailedMessage`. Nedokončené výplaty se při startu jen nahlásí. 138 testů, mutační kontrola 10 z 10, test na serveru (12.4/3 a–g) prošel (2026-11-02). Viz kapitola 12. |
+| 5–9 | ⬜ Neprovedeno | |
 
 ---
 
@@ -160,7 +161,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 - **Oprava:** Rozlišit „soubor neexistuje“ od „soubor je nečitelný“. Při chybě parsování **nikdy nepřepisovat**: na startu odmítnout start Hunt (nebo běžet bez odměn) s ERROR, při reloadu ponechat starý config. Config a lang zapisovat přes `FileStore` (tmp + atomic move). **M**.
 - **Doplněk (krok 2):** další cesta ke stejnému přepisu: `Versioned` nemá no-arg konstruktor, takže když v `config.json` chybí `version`, `versioned.getVersion().equals(...)` vyhodí NPE a `readFileAsync` vrátí `false` → přepis výchozími hodnotami. **Rozhodnutí provozovatele:** chybný config na startu = Hunt pozastaven (ne „běží bez odměn“). Řešení viz kapitola 10.
 
-#### HUNT-007 · Výplata není transakční vůči stavu huntu a selhání není vidět · A/C · [ověřeno v kódu; scénář pádu je podezření]
+#### ✅ HUNT-007 · [opraveno v 1.3.4, krok 4] · Výplata není transakční vůči stavu huntu a selhání není vidět · A/C · [ověřeno v kódu; scénář pádu je podezření]
 - **Kde:** `event/CaptureEvent.java:38-76`, `Hunt.java:118-123` (ukládá se nejvýš jednou za 30 s).
 - **Popis:** Pořadí je: hunt odstraněn (jen v paměti) → broadcast → event → výplata (Impactor ji ukládá sám) → stats → příkazy (okamžitě). `hunts.json` se zapíše až za ≤30 s.
   1. **Tvrdý pád** (kill -9 při zaseknutém stopu v Pterodactylu, OOM, watchdog) v tomto okně: po restartu je splněný hunt zpět, peníze a itemy z příkazů zůstanou a hunt jde splnit znovu. Cobblemon party se může vrátit do stavu před chycením. **[podezření, závisí na autosave Cobblemonu a ekonomiky]**
@@ -217,6 +218,7 @@ Seřazeno podle závažnosti. Řádky odpovídají commitu `f7af8f0`.
 - Projekt nemá ani jeden test. Doménová logika (`CurrentHunts`, `SingleHunt.matches`, výběr rarity) sahá přímo na `Hunt.config`, `Hunt.server`, `Hunt.broadcaster` a `Hunt.storage`, takže ji nejde testovat bez běžícího serveru. Každá oprava proto nese riziko regrese.
 - **Oprava:** Viz kapitola 7 (doménové jádro bez MC importů + JUnit 5). **M–L**.
 - **Stav po kroku 3:** JUnit 5 v `common` pokrývá substituci, výběr rarity, parsování configu a langu a `FileStore` (kapitola 11). Matching, generování huntů a výplatní tok zatím testy nemají. Výplatní tok přijde s `CompletionService` v kroku 4.
+- **Stav po kroku 4:** výplatní tok (`CompletionService`) a žurnál (`PayoutJournal`) mají 23 testů (kapitola 12). Matching a generování huntů testy pořád nemají.
 
 #### HUNT-032 · Config bez `version` přepne ekonomiku na Impactor a měnu na výchozí · C/E · [ověřeno testem, nalezeno v kroku 3]
 - **Kde:** `config/Config.java:106-119`, `old/ConfigOld.java:30`.
@@ -387,7 +389,7 @@ Tok: `POKEMON_CAPTURED` → `CobblemonCaptureListener` (try/catch, převod) → 
 | 1 | ✅ **HOTOVO (1.3.2)** · **Log výplat:** jeden INFO řádek na completion (`uuid, jméno, huntId, druh/forma, bucket, cena, výsledek ekonomiky, provedené příkazy`), ideálně do `config/hunt/payouts.log` | 014 | S |
 | 2 | ✅ **HOTOVO (1.3.3)** · **Config se nesmí přepsat:** rozlišit „neexistuje“ a „nečitelný“; při chybě parsování na startu běžet bez odměn + ERROR, při `/hunt reload` ponechat starý config; config a lang zapisovat přes `FileStore` (atomicky); opravit migraci langu; `FileStore.read` při IOException neházet „soubor neexistuje“ | 004, 012, 016 | M |
 | 3 | ✅ **HOTOVO** · **Testy:** JUnit 5 v `common`; testy substituce (`@a`, `Ash$1`, `a\`, `x;y`, `"`), `RarityConfig.getRandomRarity`, načítání rozbitého configu | 015 (část) | S |
-| 4 | **`CompletionService`:** vyčlenit výplatní tok z `CaptureEvent` (claim → log PENDING → ekonomika → příkazy jen při úspěchu → log DONE → stats), po completion vynutit uložení `hunts.json`; testy (selhání ekonomiky, dvojí completion) | 007 | M |
+| 4 | ✅ **HOTOVO (1.3.4)** · **`CompletionService`:** vyčlenit výplatní tok z `CaptureEvent` (claim → log PENDING → ekonomika → příkazy jen při úspěchu → log DONE → stats), po completion vynutit uložení `hunts.json`; testy (selhání ekonomiky, dvojí completion) | 007 | M |
 | 5 | **Oprávnění:** `requires` přes `CommandSourceStack` místo `isPlayer() ? check : true`; sjednotit `/hunt` a `/hunts` a opravit README | 009, 017 | S |
 | 6 | **Validace configu** s jasnými hláškami (`huntDuration > 0`, `huntAmount 1–28`, váhy, `economy`, ceny, existence druhů v `customPrices` a `blacklist`) | 008 | M |
 | 7 | **Admin příkazy:** reset stats, `save`, zobrazení stats podle UUID | 013, 028 | S |
@@ -585,3 +587,72 @@ Změněny 3 soubory, přibyl 1 produkční a 7 testových souborů (~700 řádk�
 - **Nové nálezy:** HUNT-030 (locale `{price}`, Nízká), HUNT-031 (chybějící sekce → výchozí odměny, Nízká), HUNT-032 (config bez `version` → změna ekonomiky a měny, Střední). Testy zatím **dokumentují současné chování** (jsou to doklady, ne požadavky) a při opravě se otočí. Doporučuji opravit v kroku 6.
 - **`FileStore.ROTATED` je statická** pro celý test JVM, takže testy rotace používají unikátní názvy souborů a ověřují jen jeden „běh“. Scénář přes 4 restarty zůstává ověřený ručně (10.2/2 q).
 - **Síť:** první build stáhne JUnit z Maven Central (v gradle cache nebyl).
+
+
+---
+
+## 12. Plán kroku 4: `CompletionService` (1.3.4) · ✅ HOTOVO a otestováno
+
+**Stav:** Změny A–K z 12.2 jsou implementované. Z 12.4 prošly body 1 (build zelený, 138 testů, `-Xlint:all` bez nových varování) a 2 (mutační kontrola 10 z 10). **Bod 3 (testovací server, scénáře a–g) proběhl a prošel** (2026-11-02).
+
+**Cíl:** Vyřešit HUNT-007. Splněný hunt se po tvrdém pádu nesmí vrátit, selhání ekonomiky nesmí spustit reward příkazy a každá rozběhnutá výplata musí být dohledatelná. Výplatní tok má být testovatelný bez serveru.
+**Rozhodnutí provozovatele (2026-11-02):** (1) nedokončené výplaty (PENDING bez DONE) se při startu **jen nahlásí**, nic se nevyplácí automaticky (u pádu mezi depositem a DONE nejde zjistit, jestli peníze odešly). (2) Při selhání ekonomiky se reward příkazy **přeskočí** a hráč dostane zprávu. Hunt s cenou 0 příkazy spouští dál. (3) Žurnál je `payouts.log` s polem `phase` (`PENDING`/`DONE`) a `completionId`.
+**Mimo rozsah:** matching, generování huntů, individuální režim, Impactor `join()` (HUNT-011), admin příkaz pro odškodnění (krok 7).
+**Datové formáty:** `hunts.json`, `stats.json` a `config.json` beze změny. `payouts.log` má nové řádky PENDING, DONE řádek má navíc `phase` a `completionId`. `lang.json` dostane klíč `payFailedMessage`.
+
+### 12.1 Nový tok
+1. **claim:** `removeHunt` (`null` → konec, hunt už splnil někdo jiný), náhradní hunt (`addHunt`, chráněno) a `HuntStorage.saveSoon()`, tedy zápis `hunts.json` hned zařazený na writer thread.
+2. Broadcast CAPTURED a `HuntEvents.COMPLETED`, každé zvlášť chráněné.
+3. `journal.pending`: synchronní append s fsync přes writer thread. Writer je FIFO, takže po návratu je na disku i `hunts.json` z bodu 1. Selhání zápisu → ERROR, výplata pokračuje.
+4. Výplata (jen při `price > 0`): `PAID` / `DECLINED` / `ERROR` / `NO_PRICE`.
+5. Příkazy jen při `PAID` nebo `NO_PRICE`. Jinak `SKIPPED_PAYMENT_FAILED` a `payFailedMessage`.
+6. Stats (`paid`).
+7. `journal.done`: async append s fsync, formát z 1.3.3 + `phase` + `completionId`, INFO do `latest.log`.
+
+Při startu (`Hunt.start`) `PayoutJournal.scan()` proudově přečte `payouts.log`. PENDING bez DONE vypíše ERROR banner. Všechna `huntId` z logu se předají `HuntStorage.load`, takže už splněný hunt se z `hunts.json` neobnoví, ani když se `hunts.json` nestihl nebo nemohl zapsat.
+
+### 12.2 Změny po souborech
+| # | Soubor | Změna |
+|---|---|---|
+| A | nový `event/CompletionService.java` | Orchestrace 12.1 bez MC importů. `record Completion`, `enum Outcome`, `record PayResult`, `record Result`. Porty `HuntClaimer`, `EconomySource` (vrací `HuntEconomy`), `RewardCommands`, `Notifier`, `StatsRecorder`, `Journal`. Každý krok chráněný (`Exception | LinkageError`). |
+| B | `event/CaptureEvent.java` | Jen listener a adaptéry nad `CurrentHunts`, `HuntEconomyProvider`, `Utils.runCommands`, `Broadcaster`, `HuntStats` a `PayoutJournal`. Vnější `try/catch (Throwable)` zůstává. |
+| C | `event/PayoutLog.java` → `event/PayoutJournal.java` | `pending` (přes `FileStore.appendSync`), `done` (přes `appendAsync`) a `scan()` → `Scan(incomplete, claimedHuntIds, unreadable)`. Nečitelné řádky a neplatné UTF-8 se přeskočí, nezastaví čtení. |
+| D | `util/FileStore.java` | `appendSync` (čeká přes writer thread i na dřív zařazené zápisy). `append` píše přes `FileChannel` + `force(true)`, takže fsync platí i pro `appendAsync`. |
+| E | `hunts/HuntStorage.java` | `saveSoon()` a `load(Set<UUID> completed)` s WARN o vyřazených huntech. |
+| F | `Hunt.java` | `scanPayoutJournal()` v `start()`: banner „Unfinished hunt payouts“ s celými PENDING řádky. Chyba čtení start neshodí. |
+| G | `util/CommandResult.java` | Status `SKIPPED_PAYMENT_FAILED`. |
+| H | `config/Lang.java` | `payFailedMessage`. Chybějící klíč → `upgraded`, takže se do souboru doplní (originál v `.bak.1`). |
+| I | `util/Utils.java` | `runCommands` bere `List<String>` místo `ArrayList<String>`. |
+| J | `README.md` | Formát `payouts.log`, filtr `jq 'select(.outcome != null)'`, selhání ekonomiky, nedokončené výplaty a jak je označit jako vyřešené (připsat DONE řádek s `completionId`), uložení `hunts.json` po splnění. |
+| K | `gradle.properties` | `mod_version=1.3.4` (obsahuje i krok 3). |
+
+Testy: nové `event/CompletionServiceTest` (14) a `event/PayoutJournalTest` (9), v `LangParseTest` +1 (`payFailedMessage`).
+
+### 12.3 Odchylky od plánu
+- `Outcome` je v `CompletionService` (spolu s `PayResult`), ne v `PayoutJournal`. Obě třídy jsou bez MC importů, na chování to nemá vliv.
+- Port ekonomiky je `EconomySource → HuntEconomy` místo `Payer`, aby se v logu zachoval název ekonomiky i při výjimce z `add()` (jako v 1.3.3).
+- Pořadí stats a příkazů je teď příkazy → stats (dřív stats → příkazy). Zprávy hráči a broadcasty mají pořadí stejné.
+- Filtr `HuntStorage.load` podle žurnálu nemá unit test (vyžaduje Cobblemon `Pokemon`). Hlídá ho scénář 12.4/3 d.
+
+### 12.4 Ověření
+1. ✅ `bash ./gradlew build`: zelený, `:common:test` 138 testů, 0 failed. `--rerun-tasks` s `-Xlint:all`: žádné nové varování (zůstává `[this-escape]` v `HuntForge` a „No processor claimed“ při kompilaci testů).
+2. ✅ **Mutační kontrola:** příkazy i při selhání platby (3 failed), druhý claim se nekontroluje (1), PENDING až po platbě (3), PENDING se nezapisuje (4), stats dostanou cenu i při selhání (2), `scan` ignoruje DONE (2), staré řádky bez `phase` neoznačí hunt (1), chybí zpráva o selhání (2), `payFailedMessage` se nedoplní (1), `appendSync` ignoruje chybu zápisu (1). Nezkoušeno: „PENDING přes `appendAsync`“. Jde o trvanlivost na disku a deterministický test by vyžadoval zablokovat writer thread.
+3. ✅ **Testovací server** (prošlo 2026-11-02) (offline, `matchProperties` false, `/spawnpokemon`, před scénáři zálohovat `config/hunt/`):
+   - a) Běžné chycení → broadcast, peníze, příkazy, stats. V `payouts.log` PENDING a DONE `PAID` se stejným `completionId`. `hunts.json` má hned po chycení (bez čekání 30 s) náhradní hunt.
+   - b) `economy: PEBBLES` bez módu → DONE `ERROR`, příkazy `SKIPPED_PAYMENT_FAILED`, hráč dostal `payFailedMessage`, žádný diamant.
+   - c) Cena 0 → `NO_PRICE`, příkazy běží.
+   - d) Chytit a do 30 s `kill -9` → po restartu splněný hunt není zpět. Pak z `payouts.log` smazat DONE řádek a restartovat → banner „Unfinished hunt payouts“ s tím řádkem. Připsat DONE podle README → po restartu banner zmizí. Navíc: obnovit `hunts.json` ze zálohy před chycením → hunt se neobnoví a v logu je WARN „Dropped 1 saved hunts…“.
+   - e) `lang.json` z 1.3.3 → doplní se `payFailedMessage`, vlastní texty zůstanou, `.bak.1` = originál.
+   - f) `jq -c . config/hunt/payouts.log` načte všechny řádky včetně řádků z 1.3.3.
+   - g) Regrese 9.2/3 a), b) (`Test$1`: `{player}` přeskočen, `{uuid}` proběhne) a 10.2/2 s).
+
+### 12.5 Nasazení a rollback
+1. Zálohovat `config/hunt/` a jar 1.3.3. Nasadit 1.3.4 při restartu.
+2. Po startu: `grep -E "Hunt.*(PAUSED|ERROR|Unfinished)" logs/latest.log` je prázdné.
+3. Skripty nad `payouts.log` upravit na filtr `select(.outcome != null)` (jen DONE a řádky z 1.3.3, bez PENDING a bez ručně připsaných `resolved` řádků).
+4. **Rollback:** jar 1.3.3. Formáty `hunts.json` a `stats.json` jsou stejné. 1.3.3 do `payouts.log` jen připisuje a klíč `payFailedMessage` v `lang.json` ignoruje.
+
+### 12.6 Rizika
+- Synchronní fsync na hlavním vlákně při každém splnění huntu (jednotky ms, splnění je vzácné). Čeká i na případný zařazený zápis `hunts.json` nebo `stats.json`.
+- Při selhání ekonomiky hráč nedostane itemy z příkazů. Je to záměr (rozhodnutí 2).
+- `scan()` čte celý `payouts.log` při každém startu. 100k splnění je ≈ 40–80 MB, proudově řádově 1–2 s. Při velkém logu ho archivovat (po vyřešení všech nedokončených výplat).

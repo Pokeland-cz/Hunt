@@ -12,6 +12,8 @@ public record CommandResult(String template, String command, Status status, int 
 	public enum Status {
 		RAN,
 		SKIPPED_UNSAFE_NAME,
+		/** Not run because the economy didn't pay the reward. */
+		SKIPPED_PAYMENT_FAILED,
 		FAILED
 	}
 }

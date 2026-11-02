@@ -9,6 +9,7 @@ import org.pokesplash.hunt.config.Config;
 import org.pokesplash.hunt.config.ConfigLoadException;
 import org.pokesplash.hunt.config.Lang;
 import org.pokesplash.hunt.event.CaptureEvent;
+import org.pokesplash.hunt.event.PayoutJournal;
 import org.pokesplash.hunt.hunts.CurrentHunts;
 import org.pokesplash.hunt.hunts.HuntManager;
 import org.pokesplash.hunt.hunts.HuntStorage;
@@ -21,6 +22,7 @@ import org.pokesplash.hunt.util.Permissions;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public class Hunt
@@ -82,10 +84,37 @@ public class Hunt
 		// Start from a clean state (statics survive between worlds in singleplayer), then restore saved hunts.
 		hunts = new CurrentHunts(null);
 		manager = new HuntManager();
-		storage.load();
+		storage.load(scanPayoutJournal());
 
 		fillHunts();
 		loaded = true;
+	}
+
+	/**
+	 * Reads payouts.log and reports payouts that were started but never finished (the server stopped
+	 * during the payout). Nothing is paid again: whether the money arrived can't be known, so an admin
+	 * has to check and compensate. Never fails the startup.
+	 * @return ids of hunts that were already completed, so they aren't restored from hunts.json.
+	 */
+	private static Set<UUID> scanPayoutJournal() {
+		try {
+			PayoutJournal.Scan scan = PayoutJournal.DEFAULT.scan();
+			if (scan.unreadable() > 0) {
+				LOGGER.warn(scan.unreadable() + " lines in " + PayoutJournal.FILENAME + " could not be read and were skipped.");
+			}
+			if (!scan.incomplete().isEmpty()) {
+				LOGGER.error("==================================================================");
+				LOGGER.error("Unfinished hunt payouts: " + scan.incomplete().size() + " (the server stopped during a payout).");
+				LOGGER.error("Nothing was paid again. Check the player's balance and reward commands,");
+				LOGGER.error("compensate if needed, then see 'Unfinished payouts' in the README to clear this report.");
+				scan.incomplete().values().forEach(line -> LOGGER.error("  " + line));
+				LOGGER.error("==================================================================");
+			}
+			return scan.claimedHuntIds();
+		} catch (Exception ex) {
+			LOGGER.error("Could not read " + PayoutJournal.FILENAME + " to check for unfinished payouts.", ex);
+			return Set.of();
+		}
 	}
 
 	/**

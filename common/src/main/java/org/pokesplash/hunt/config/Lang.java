@@ -16,6 +16,7 @@ public class Lang extends Versioned {
 	private String reloadMessage; // Reload message.
 	private String captureHuntBroadcast; // Message broadcast to players when a hunt has been caught.
 	private String payMessage; // Message sent when a player gets paid.
+	private String payFailedMessage; // Message sent when the economy couldn't pay a hunt reward.
 	private String endedHuntMessage; // The message sent when a hunt ends.
 	private String newHuntMessage; // The message sent when a new hunt begins.
 	private String reward;
@@ -39,6 +40,7 @@ public class Lang extends Versioned {
 		reloadMessage = "§aReloaded Configs!";
 		captureHuntBroadcast = "§5[Hunt] §e{player} §ahas successfully hunted §e{pokemon}";
 		payMessage = "§5[Hunt] §eYou were paid {price} from hunt!";
+		payFailedMessage = "§5[Hunt] §cYour hunt reward could not be paid. Please contact an admin.";
 		endedHuntMessage = "§5[Hunt] §3The hunt for {pokemon} has ended!";
 		newHuntMessage = "§5[Hunt] §bThe hunt for {pokemon} has begun!";
 		reward = "§6Reward: §e";
@@ -69,6 +71,9 @@ public class Lang extends Versioned {
 	}
 	public String getPayMessage() {
 		return payMessage;
+	}
+	public String getPayFailedMessage() {
+		return payFailedMessage;
 	}
 	public String getEndedHuntMessage() {
 		return endedHuntMessage;
@@ -145,6 +150,10 @@ public class Lang extends Versioned {
 
 		// Older lang files don't have the stats messages yet, write them so they can be edited.
 		if (!root.has("statsHeader")) {
+			lang.upgraded = true;
+		}
+		// Added in 1.3.4.
+		if (!root.has("payFailedMessage")) {
 			lang.upgraded = true;
 		}
 		return lang;

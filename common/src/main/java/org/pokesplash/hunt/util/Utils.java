@@ -114,7 +114,7 @@ public abstract class Utils {
 	 * name isn't safe to put into a command (it could be a selector like @a); commands using {uuid} still run.
 	 * @return what happened to each command, for the payout log.
 	 */
-	public static List<CommandResult> runCommands(ArrayList<String> commands, ServerPlayer player, Pokemon pokemon,
+	public static List<CommandResult> runCommands(List<String> commands, ServerPlayer player, Pokemon pokemon,
 												  double price) {
 		List<CommandResult> results = new ArrayList<>();
 		CommandDispatcher<CommandSourceStack> dispatcher =

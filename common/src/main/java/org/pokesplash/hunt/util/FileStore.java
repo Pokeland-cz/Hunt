@@ -3,6 +3,8 @@ package org.pokesplash.hunt.util;
 import org.pokesplash.hunt.Hunt;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -91,6 +93,22 @@ public final class FileStore {
 	}
 
 	/**
+	 * Appends a line on the background thread and waits until it, and anything queued before it,
+	 * is written and flushed to disk. Used for the pending payout line, before anything is paid.
+	 * @return true if the line was written.
+	 */
+	public static boolean appendSync(String filename, String line) {
+		try {
+			return WRITER.submit(() -> append(filename, line)).get();
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		} catch (ExecutionException e) {
+			Hunt.LOGGER.error("Could not append to " + path(filename), e.getCause());
+		}
+		return false;
+	}
+
+	/**
 	 * Writes a file and waits for it, and for any queued writes, to finish.
 	 * Used on server shutdown and for config files.
 	 * @return true if the file was written.
@@ -120,14 +138,25 @@ public final class FileStore {
 		}
 	}
 
-	private static void append(String filename, String line) {
+	/**
+	 * Appends a line and flushes it to disk (fsync), so it survives a power loss too.
+	 */
+	private static boolean append(String filename, String line) {
 		Path path = path(filename);
 		try {
 			Files.createDirectories(DIRECTORY);
-			Files.writeString(path, line + "\n", StandardCharsets.UTF_8,
-					StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+			try (FileChannel channel = FileChannel.open(path, StandardOpenOption.CREATE,
+					StandardOpenOption.APPEND, StandardOpenOption.WRITE)) {
+				ByteBuffer buffer = ByteBuffer.wrap((line + "\n").getBytes(StandardCharsets.UTF_8));
+				while (buffer.hasRemaining()) {
+					channel.write(buffer);
+				}
+				channel.force(true);
+			}
+			return true;
 		} catch (IOException e) {
 			Hunt.LOGGER.error("Could not append to " + path + ": " + line, e);
+			return false;
 		}
 	}
 

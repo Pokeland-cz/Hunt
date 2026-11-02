@@ -33,6 +33,19 @@ class LangParseTest {
 		assertEquals(Hunt.LANG_VERSION, lang.getVersion());
 	}
 
+	// 1.3.4: a 1.3.3 lang.json gets the new message written in, its own texts stay.
+	@Test
+	void fileWithoutPayFailedMessageIsUpgraded() throws ConfigLoadException {
+		Lang lang = Lang.parse(langJsonWith(root -> {
+			root.remove("payFailedMessage");
+			root.addProperty("captureHuntBroadcast", CUSTOM_BROADCAST);
+		}));
+		assertTrue(lang.isUpgraded());
+		assertEquals(new Lang().getPayFailedMessage(), lang.getPayFailedMessage());
+		assertEquals(CUSTOM_BROADCAST, lang.getCaptureHuntBroadcast());
+		assertTrue(JsonParser.parseString(lang.toJson()).getAsJsonObject().has("payFailedMessage"));
+	}
+
 	@ParameterizedTest
 	@ValueSource(strings = {"", "   ", "[]", "\"text\"", "{\"title\": \"Hunt\" \"reward\": \"x\"}", "{\"title\": "})
 	void unreadableFileIsRejected(String json) {

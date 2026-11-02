@@ -7,20 +7,22 @@ import kotlin.Unit;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import org.pokesplash.hunt.Hunt;
-import org.pokesplash.hunt.api.economy.HuntEconomy;
 import org.pokesplash.hunt.api.economy.HuntEconomyProvider;
 import org.pokesplash.hunt.api.event.HuntEvents;
 import org.pokesplash.hunt.api.event.events.CompletedEvent;
 import org.pokesplash.hunt.broadcast.BroadcastType;
+import org.pokesplash.hunt.event.CompletionService.Completion;
 import org.pokesplash.hunt.hunts.CurrentHunts;
 import org.pokesplash.hunt.hunts.HuntTarget;
 import org.pokesplash.hunt.hunts.SingleHunt;
-import org.pokesplash.hunt.util.CommandResult;
 import org.pokesplash.hunt.util.Utils;
 
-import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
 
+/**
+ * Listens for captures and hands matching ones to {@link CompletionService}, which claims the hunt and pays.
+ */
 public abstract class CaptureEvent {
 	public static void registerEvents() {
 		// Capture event checks the current hunts.
@@ -40,8 +42,7 @@ public abstract class CaptureEvent {
 
 				// If the pokemon doesn't match a hunt pokemon, huntId is null.
 				if (huntId != null) {
-					// Claim the hunt first, so it can't be completed twice.
-					SingleHunt hunt = currentHunts.removeHunt(huntId, false);
+					SingleHunt hunt = currentHunts.getHunt(huntId);
 					if (hunt != null) {
 						complete(currentHunts, hunt, player, pokemon);
 					}
@@ -56,88 +57,83 @@ public abstract class CaptureEvent {
 		});
 	}
 
-	/**
-	 * Completes a hunt that was already removed from the current hunts. Each step is guarded on its own,
-	 * so a failing step doesn't cancel the others (in particular not the payout).
-	 */
 	private static void complete(CurrentHunts currentHunts, SingleHunt hunt, ServerPlayer player, Pokemon pokemon) {
 		double price = hunt.getPrice();
+		Completion completion = new Completion(
+				UUID.randomUUID(),
+				player.getUUID(),
+				player.getName().getString(),
+				hunt.getId(),
+				safe(() -> HuntTarget.key(hunt.getPokemon().getSpecies(), hunt.getPokemon().getForm())),
+				hunt.getBucket(),
+				price,
+				hunt.getCommands(),
+				safe(() -> pokemon.getUuid().toString()));
 
-		// Replacement hunt, before the captured broadcast (same message order as before).
+		CompletionService.Notifier notifier = new CompletionService.Notifier() {
+			@Override
+			public void captured() {
+				if (!Hunt.config.isIndividualHunts()) {
+					Hunt.broadcaster.sendBroadcast(BroadcastType.CAPTURED, player, pokemon, price);
+				}
+			}
+
+			@Override
+			public void completedEvent() {
+				HuntEvents.COMPLETED.trigger(new CompletedEvent(hunt, player.getUUID()));
+			}
+
+			@Override
+			public void paid() {
+				player.sendSystemMessage(Component.literal(Utils.formatPlaceholders(
+						Hunt.language.getPayMessage(), player, pokemon, price)));
+			}
+
+			@Override
+			public void paymentFailed() {
+				player.sendSystemMessage(Component.literal(Utils.formatPlaceholders(
+						Hunt.language.getPayFailedMessage(), player, pokemon, price)));
+			}
+		};
+
+		new CompletionService(
+				id -> claim(currentHunts, id, completion),
+				HuntEconomyProvider::getHighestEconomy,
+				commands -> Utils.runCommands(commands, player, pokemon, price),
+				notifier,
+				(bucket, paid) -> Hunt.stats.recordCompletion(player, bucket, paid),
+				PayoutJournal.DEFAULT
+		).complete(completion);
+	}
+
+	/**
+	 * Removes the hunt, adds a replacement (before the captured broadcast, same message order as before)
+	 * and queues hunts.json, so it's on disk before the payout starts.
+	 * @return false if the hunt was already gone.
+	 */
+	private static boolean claim(CurrentHunts currentHunts, UUID huntId, Completion completion) {
+		if (currentHunts.removeHunt(huntId, false) == null) {
+			return false;
+		}
 		try {
 			currentHunts.addHunt();
 		} catch (Exception ex) {
 			Hunt.LOGGER.error("Could not create a replacement hunt. Fix the config, then run /hunt reload "
-					+ "to top up the hunts. " + describe(player, hunt.getId(), pokemon), ex);
+					+ "to top up the hunts. " + completion.describe(), ex);
 		}
-
-		if (!Hunt.config.isIndividualHunts()) {
-			try {
-				Hunt.broadcaster.sendBroadcast(BroadcastType.CAPTURED, player, pokemon, price);
-			} catch (Exception ex) {
-				Hunt.LOGGER.error("Could not send the hunt captured broadcast. "
-						+ describe(player, hunt.getId(), pokemon), ex);
-			}
-		}
-
-		// Subscribers are guarded in Event.trigger.
-		HuntEvents.COMPLETED.trigger(new CompletedEvent(hunt, player.getUUID()));
-
-		double paid = 0;
-		PayoutLog.Outcome outcome = PayoutLog.Outcome.NO_PRICE;
-		String economyName = null;
-		String economyError = null;
-
-		// Checks there's a price.
-		if (price > 0) {
-			try {
-				// Performs the transaction.
-				HuntEconomy economy = HuntEconomyProvider.getHighestEconomy();
-				economyName = economy.getClass().getSimpleName();
-				boolean success = economy.add(player.getUUID(), price);
-
-				if (success) {
-					paid = price;
-					outcome = PayoutLog.Outcome.PAID;
-
-					player.sendSystemMessage(Component.literal(Utils.formatPlaceholders(
-							Hunt.language.getPayMessage(), player, pokemon, price
-					)));
-				} else {
-					outcome = PayoutLog.Outcome.DECLINED;
-					Hunt.LOGGER.warn("The economy " + economyName + " refused to pay " + price + " for a hunt. "
-							+ describe(player, hunt.getId(), pokemon));
-				}
-			} catch (Exception | LinkageError ex) {
-				outcome = PayoutLog.Outcome.ERROR;
-				economyError = ex.toString();
-				Hunt.LOGGER.error("Could not pay " + price + " for a hunt. "
-						+ describe(player, hunt.getId(), pokemon), ex);
-			}
-		}
-
 		try {
-			Hunt.stats.recordCompletion(player, hunt.getBucket(), paid);
+			Hunt.storage.saveSoon();
 		} catch (Exception ex) {
-			Hunt.LOGGER.error("Could not record the hunt completion in the stats. "
-					+ describe(player, hunt.getId(), pokemon), ex);
+			Hunt.LOGGER.error("Could not queue saving the hunts. " + completion.describe(), ex);
 		}
+		return true;
+	}
 
-		// Runs commands (each command is also guarded in runCommands).
-		List<CommandResult> commandResults = List.of();
-		if (hunt.getCommands() != null) {
-			try {
-				commandResults = Utils.runCommands(hunt.getCommands(), player, pokemon, price);
-			} catch (Exception ex) {
-				Hunt.LOGGER.error("Could not run the hunt reward commands. "
-						+ describe(player, hunt.getId(), pokemon), ex);
-			}
-		}
-
+	private static String safe(Supplier<String> value) {
 		try {
-			PayoutLog.record(player, hunt, pokemon, price, economyName, outcome, paid, economyError, commandResults);
-		} catch (Exception ex) {
-			Hunt.LOGGER.error("Could not write the payout log. " + describe(player, hunt.getId(), pokemon), ex);
+			return value.get();
+		} catch (Exception ignored) {
+			return null;
 		}
 	}
 

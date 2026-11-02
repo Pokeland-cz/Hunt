@@ -9,6 +9,7 @@ import org.pokesplash.hunt.util.FileStore;
 import org.pokesplash.hunt.util.Utils;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -31,6 +32,17 @@ public class HuntStorage {
 
 	public void saveIfDirty() {
 		if (dirty && canSave(false)) {
+			dirty = false;
+			FileStore.writeAsync(FILE, serialize());
+		}
+	}
+
+	/**
+	 * Queues hunts.json to be written right away, without waiting for the 30 second interval.
+	 * Used after a hunt is completed, so a crash can't bring the completed hunt back.
+	 */
+	public void saveSoon() {
+		if (canSave(false)) {
 			dirty = false;
 			FileStore.writeAsync(FILE, serialize());
 		}
@@ -81,9 +93,11 @@ public class HuntStorage {
 
 	/**
 	 * Loads saved hunts into Hunt.hunts and Hunt.manager. Hunts that can't be loaded
-	 * (e.g. their species was removed) are skipped.
+	 * (e.g. their species was removed) are skipped, and so are hunts the payout journal says were
+	 * already completed (hunts.json may not have been saved before a crash).
+	 * @param completed ids of hunts that were already completed.
 	 */
-	public void load() {
+	public void load(Set<UUID> completed) {
 		writable = true;
 		lockLogged = false;
 		String data;
@@ -112,11 +126,14 @@ public class HuntStorage {
 
 		int loaded = 0;
 		int skipped = 0;
+		int alreadyCompleted = 0;
 
 		if (root.has("global")) {
 			for (JsonElement element : root.getAsJsonArray("global")) {
 				SingleHunt hunt = parse(element);
-				if (hunt != null && Hunt.hunts.restoreHunt(hunt)) {
+				if (hunt != null && completed.contains(hunt.getId())) {
+					alreadyCompleted++;
+				} else if (hunt != null && Hunt.hunts.restoreHunt(hunt)) {
 					loaded++;
 				} else {
 					skipped++;
@@ -136,7 +153,9 @@ public class HuntStorage {
 				CurrentHunts playerHunts = new CurrentHunts(player);
 				for (JsonElement element : entry.getValue().getAsJsonArray()) {
 					SingleHunt hunt = parse(element);
-					if (hunt != null && playerHunts.restoreHunt(hunt)) {
+					if (hunt != null && completed.contains(hunt.getId())) {
+						alreadyCompleted++;
+					} else if (hunt != null && playerHunts.restoreHunt(hunt)) {
 						loaded++;
 					} else {
 						skipped++;
@@ -146,9 +165,13 @@ public class HuntStorage {
 			}
 		}
 
-		if (skipped > 0) {
+		if (skipped > 0 || alreadyCompleted > 0) {
 			// Some saved hunts were dropped, so save the cleaned-up state.
 			markDirty();
+		}
+		if (alreadyCompleted > 0) {
+			Hunt.LOGGER.warn("Dropped " + alreadyCompleted + " saved hunts that the payout log says were already "
+					+ "completed (" + FILE + " was not saved after they were completed).");
 		}
 		Hunt.LOGGER.info("Loaded " + loaded + " saved hunts" + (skipped > 0 ? " (" + skipped + " skipped)." : "."));
 	}
